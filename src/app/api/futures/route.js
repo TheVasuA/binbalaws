@@ -3,10 +3,10 @@ import {
   getFuturesAccount, 
   getFuturesPositions,
   getFuturesOpenOrders,
-  calculateFuturesRiskMetrics,
   closePosition,
   getApiWeight
 } from '@/lib/binance';
+import { calculateFuturesRiskMetrics } from '@/lib/risk';
 
 export async function GET(request) {
   try {

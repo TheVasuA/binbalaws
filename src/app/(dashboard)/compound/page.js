@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useFetch, formatCurrency } from '@/lib/utils';
 
 export default function CompoundPage() {
-  const { data: futuresData, loading: futuresLoading, refetch } = useFetch('/api/futures', { refreshInterval: 10000 });
+  const { data: futuresData, loading: futuresLoading, refetch } = useFetch('/api/futures', { refreshInterval: 60000 });
   const [completedTrades, setCompletedTrades] = useState([]);
   const [savedStartingBalance, setSavedStartingBalance] = useState(null);
   const [isDbLoaded, setIsDbLoaded] = useState(false);

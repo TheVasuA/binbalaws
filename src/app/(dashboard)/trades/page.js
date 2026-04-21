@@ -7,7 +7,7 @@ export default function TradesPage() {
   const [activeTab, setActiveTab] = useState('profits');
   
   // Fetch last 1000 trades to cover ~1 month
-  const { data: trades, loading, error, refetch } = useFetch('/api/trades?type=pnl&limit=1000', { refreshInterval: 10000 });
+  const { data: trades, loading, error, refetch } = useFetch('/api/trades?type=pnl&limit=1000', { refreshInterval: 60000 });
 
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);

@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useFetch } from '@/lib/utils';
+import { useBinanceSpotStream } from '@/lib/binanceWS';
+import { calculateRiskMetrics } from '@/lib/risk';
 import RiskMetrics from '@/components/RiskMetrics';
 import HoldingsTable from '@/components/HoldingsTable';
 import AllocationChart from '@/components/AllocationChart';
@@ -10,20 +12,33 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function SpotPage() {
   const [displayError, setDisplayError] = useState(null);
-  const REFRESH_INTERVAL = 10000;
 
-  const { 
-    data: portfolioData, 
-    loading: portfolioLoading, 
+  // One-time initial REST fetch (no polling).
+  const {
+    data: portfolioData,
+    loading: portfolioLoading,
     error: portfolioError,
     refetch: refetchPortfolio,
-    apiWeight
-  } = useFetch('/api/portfolio', { refreshInterval: REFRESH_INTERVAL });
+  } = useFetch('/api/portfolio');
 
-  const { 
-    data: ordersData, 
-    loading: ordersLoading 
-  } = useFetch('/api/orders?type=open', { refreshInterval: REFRESH_INTERVAL });
+  // Open orders are static enough - fetch once, no poll.
+  const {
+    data: ordersData,
+    loading: ordersLoading,
+  } = useFetch('/api/orders?type=open');
+
+  // Live WebSocket stream.
+  const {
+    holdings,
+    totalValue,
+    connected: wsConnected,
+  } = useBinanceSpotStream({ initialData: portfolioData });
+
+  // Compute risk metrics client-side from live holdings.
+  const riskMetrics = useMemo(
+    () => calculateRiskMetrics(holdings, totalValue),
+    [holdings, totalValue],
+  );
 
   useEffect(() => {
     if (portfolioError) {
@@ -38,37 +53,22 @@ export default function SpotPage() {
     return <LoadingSpinner text="Loading spot portfolio..." />;
   }
 
-  const { totalValue, holdings, riskMetrics, lastUpdated } = portfolioData || {};
-
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
       {/* Page Title */}
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Spot Portfolio</h1>
-        <p className="text-gray-500 text-sm">
-          {lastUpdated && `Updated ${new Date(lastUpdated).toLocaleTimeString()}`}
-        </p>
-      </div>
-
-      {/* API Weight Display */}
-      {apiWeight !== null && (
-        <div className={`mb-4 px-3 py-2 rounded-lg text-xs font-mono flex items-center gap-2 ${
-          apiWeight > 1000 ? 'bg-red-500/20 border border-red-500/30 text-red-400' :
-          apiWeight > 600 ? 'bg-yellow-500/20 border border-yellow-500/30 text-yellow-400' :
-          'bg-green-500/20 border border-green-500/30 text-green-400'
-        }`}>
-          <span>⚡ API Weight:</span>
-          <span className="font-bold">{apiWeight}/1200</span>
-          <div className="flex-1 bg-gray-700 rounded-full h-1.5 ml-2">
-            <div 
-              className={`h-1.5 rounded-full transition-all ${
-                apiWeight > 1000 ? 'bg-red-500' : apiWeight > 600 ? 'bg-yellow-500' : 'bg-green-500'
-              }`}
-              style={{ width: `${Math.min((apiWeight / 1200) * 100, 100)}%` }}
-            />
-          </div>
+      <div className="mb-6 flex items-center gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-white">Spot Portfolio</h1>
+          <p className="text-gray-500 text-sm">
+            {portfolioData?.lastUpdated && `Loaded ${new Date(portfolioData.lastUpdated).toLocaleTimeString()}`}
+          </p>
         </div>
-      )}
+        {/* WebSocket live indicator */}
+        <div className="flex items-center gap-1.5 ml-2">
+          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+          {wsConnected && <span className="text-green-400 text-xs font-mono">LIVE</span>}
+        </div>
+      </div>
 
       {/* Spot Risk Metrics */}
       <section className="mb-4 md:mb-8">
