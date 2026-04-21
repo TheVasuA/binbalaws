@@ -46,6 +46,7 @@ export default function Navbar({ onRefresh, loading, progressData }) {
 
   const navItems = [
     { href: '/', label: 'Futures' },
+    { href: '/new-order', label: 'New Order' },
     { href: '/spot', label: 'Spot' },
     { href: '/compound', label: '🎯 Goal' },
     { href: '/trades', label: '📊 History' },

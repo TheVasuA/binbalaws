@@ -173,6 +173,49 @@ async function futuresPublicRequest(endpoint, params = {}) {
   return response.data;
 }
 
+// Make signed POST request to Binance Futures API
+async function futuresSignedPost(endpoint, params = {}) {
+  const apiKey = process.env.BINANCE_API_KEY?.trim();
+  const apiSecret = process.env.BINANCE_API_SECRET?.trim();
+
+  if (!apiKey || !apiSecret) {
+    throw new Error('API keys not configured');
+  }
+
+  const timestamp = await getFuturesServerTime();
+  const queryParams = { ...params, timestamp };
+  const queryString = new URLSearchParams(queryParams).toString();
+  const signature = createSignature(queryString, apiSecret);
+  const url = `${getFuturesBaseUrl()}${endpoint}?${queryString}&signature=${signature}`;
+
+  try {
+    const response = await axios.post(url, null, {
+      headers: {
+        'X-MBX-APIKEY': apiKey,
+      },
+    });
+
+    const weight = response.headers['x-mbx-used-weight-1m'] || response.headers['x-mbx-used-weight'];
+    if (weight) {
+      currentApiWeight = parseInt(weight);
+      lastWeightUpdate = Date.now();
+    }
+
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      const weight = error.response.headers?.['x-mbx-used-weight-1m'] || error.response.headers?.['x-mbx-used-weight'];
+      if (weight) {
+        currentApiWeight = parseInt(weight);
+        lastWeightUpdate = Date.now();
+      }
+      const msg = error.response.data?.msg || error.response.data?.code || 'Unknown error';
+      throw new Error(`Binance Futures API: ${msg}`);
+    }
+    throw error;
+  }
+}
+
 // Make public request to Binance API
 async function publicRequest(endpoint, params = {}) {
   const queryString = new URLSearchParams(params).toString();
@@ -357,6 +400,391 @@ export async function getRecentTrades(symbol = 'BTCUSDT', limit = 50) {
 }
 
 // ========== FUTURES API FUNCTIONS ==========
+
+let futuresPositive3dShortlistCache = [];
+let futuresPositive3dShortlistUpdatedAt = 0;
+const FUTURES_SHORTLIST_CACHE_MS = 5 * 60 * 1000;
+let futuresRsi1hScanCache = null;
+let futuresRsi1hScanUpdatedAt = 0;
+const FUTURES_RSI_SCAN_CACHE_MS = 5 * 60 * 1000;
+
+function calculateRsi(closes, period = 14) {
+  if (!Array.isArray(closes) || closes.length <= period) return null;
+
+  let gains = 0;
+  let losses = 0;
+
+  for (let i = 1; i <= period; i += 1) {
+    const delta = closes[i] - closes[i - 1];
+    if (delta >= 0) gains += delta;
+    else losses += Math.abs(delta);
+  }
+
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+
+  for (let i = period + 1; i < closes.length; i += 1) {
+    const delta = closes[i] - closes[i - 1];
+    const gain = delta > 0 ? delta : 0;
+    const loss = delta < 0 ? Math.abs(delta) : 0;
+
+    avgGain = ((avgGain * (period - 1)) + gain) / period;
+    avgLoss = ((avgLoss * (period - 1)) + loss) / period;
+  }
+
+  if (avgGain === 0 && avgLoss === 0) return 50;
+  if (avgLoss === 0) return 100;
+
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+// Get 3-day futures movers ranked from positive to negative
+export async function getFuturesPositive3dShortlist(limit = 40) {
+  try {
+    const requestedLimit = Number.isFinite(parseInt(limit, 10)) ? parseInt(limit, 10) : 40;
+    const now = Date.now();
+
+    if (
+      futuresPositive3dShortlistCache.length > 0 &&
+      now - futuresPositive3dShortlistUpdatedAt < FUTURES_SHORTLIST_CACHE_MS
+    ) {
+      return futuresPositive3dShortlistCache.slice(0, requestedLimit);
+    }
+
+    const [exchangeInfo, tickers24h] = await Promise.all([
+      futuresPublicRequest('/fapi/v1/exchangeInfo'),
+      futuresPublicRequest('/fapi/v1/ticker/24hr'),
+    ]);
+
+    const symbolsMap = new Map(
+      exchangeInfo.symbols
+        .filter(s => s.status === 'TRADING' && s.contractType === 'PERPETUAL')
+        .map(s => [s.symbol, s]),
+    );
+
+    // Restrict to liquid USDT futures symbols to avoid excessive API load.
+    const liquidSymbols = tickers24h
+      .filter(t => symbolsMap.has(t.symbol) && t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 0)
+      .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+      .slice(0, 200)
+      .map(t => t.symbol);
+
+    const results = [];
+    const batchSize = 12;
+
+    for (let i = 0; i < liquidSymbols.length; i += batchSize) {
+      const batch = liquidSymbols.slice(i, i + batchSize);
+
+      const batchResults = await Promise.all(
+        batch.map(async (symbol) => {
+          try {
+            const klines = await futuresPublicRequest('/fapi/v1/klines', {
+              symbol,
+              interval: '1d',
+              limit: 4,
+            });
+
+            if (!Array.isArray(klines) || klines.length < 4) return null;
+
+            const open3DaysAgo = parseFloat(klines[0][1]);
+            const latestClose = parseFloat(klines[3][4]);
+            if (!Number.isFinite(open3DaysAgo) || open3DaysAgo <= 0 || !Number.isFinite(latestClose)) {
+              return null;
+            }
+
+            const change3dPercent = ((latestClose - open3DaysAgo) / open3DaysAgo) * 100;
+            const symbolInfo = symbolsMap.get(symbol);
+            if (!symbolInfo) return null;
+
+            return {
+              symbol,
+              baseAsset: symbolInfo.baseAsset,
+              quoteAsset: symbolInfo.quoteAsset,
+              lastPrice: latestClose,
+              change3dPercent: parseFloat(change3dPercent.toFixed(2)),
+            };
+          } catch (error) {
+            return null;
+          }
+        }),
+      );
+
+      results.push(...batchResults.filter(Boolean));
+    }
+
+    const rankedBy3dChange = results
+      .sort((a, b) => b.change3dPercent - a.change3dPercent);
+
+    futuresPositive3dShortlistCache = rankedBy3dChange;
+    futuresPositive3dShortlistUpdatedAt = now;
+
+    return rankedBy3dChange.slice(0, requestedLimit);
+  } catch (error) {
+    console.error('Error fetching futures 3d shortlist:', error.message);
+    throw error;
+  }
+}
+
+// Scan top USDT perpetual futures symbols and return 1h RSI strategy buckets.
+export async function getFuturesRsi1hScan(scanLimit = 280) {
+  try {
+    const parsedScanLimit = parseInt(scanLimit, 10);
+    const requestedScanLimit = Number.isFinite(parsedScanLimit)
+      ? Math.min(Math.max(parsedScanLimit, 20), 280)
+      : 280;
+    const now = Date.now();
+
+    if (
+      futuresRsi1hScanCache &&
+      futuresRsi1hScanCache.scanLimit === requestedScanLimit &&
+      now - futuresRsi1hScanUpdatedAt < FUTURES_RSI_SCAN_CACHE_MS
+    ) {
+      return futuresRsi1hScanCache;
+    }
+
+    const [exchangeInfo, tickers24h] = await Promise.all([
+      futuresPublicRequest('/fapi/v1/exchangeInfo'),
+      futuresPublicRequest('/fapi/v1/ticker/24hr'),
+    ]);
+
+    const symbolsMap = new Map(
+      exchangeInfo.symbols
+        .filter(s => s.status === 'TRADING' && s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+        .map(s => [s.symbol, s]),
+    );
+
+    const tickerMap = new Map(tickers24h.map(t => [t.symbol, t]));
+
+    const scanSymbols = tickers24h
+      .filter(t => symbolsMap.has(t.symbol) && parseFloat(t.quoteVolume) > 0)
+      .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+      .slice(0, requestedScanLimit)
+      .map(t => t.symbol);
+
+    const results = [];
+    const batchSize = 10;
+
+    for (let i = 0; i < scanSymbols.length; i += batchSize) {
+      const batch = scanSymbols.slice(i, i + batchSize);
+
+      const batchResults = await Promise.all(
+        batch.map(async (symbol) => {
+          try {
+            const klines = await futuresPublicRequest('/fapi/v1/klines', {
+              symbol,
+              interval: '1h',
+              limit: 100,
+            });
+
+            if (!Array.isArray(klines) || klines.length < 20) return null;
+
+            const closes = klines
+              .map(k => parseFloat(k[4]))
+              .filter(v => Number.isFinite(v) && v > 0);
+
+            if (closes.length < 20) return null;
+
+            const rsi = calculateRsi(closes, 14);
+            if (!Number.isFinite(rsi)) return null;
+
+            const symbolInfo = symbolsMap.get(symbol);
+            const ticker = tickerMap.get(symbol);
+
+            if (!symbolInfo || !ticker) return null;
+
+            const change24hRaw = parseFloat(ticker.priceChangePercent);
+            const quoteVolumeRaw = parseFloat(ticker.quoteVolume);
+            const lastPriceRaw = parseFloat(ticker.lastPrice);
+
+            return {
+              symbol,
+              baseAsset: symbolInfo.baseAsset,
+              quoteAsset: symbolInfo.quoteAsset,
+              rsi1h: Number(rsi.toFixed(2)),
+              lastPrice: Number.isFinite(lastPriceRaw)
+                ? lastPriceRaw
+                : closes[closes.length - 1],
+              change24hPercent: Number.isFinite(change24hRaw)
+                ? Number(change24hRaw.toFixed(2))
+                : 0,
+              quoteVolume: Number.isFinite(quoteVolumeRaw)
+                ? quoteVolumeRaw
+                : 0,
+            };
+          } catch (error) {
+            return null;
+          }
+        }),
+      );
+
+      results.push(...batchResults.filter(Boolean));
+    }
+
+    const below30 = results
+      .filter(item => item.rsi1h < 30)
+      .sort((a, b) => {
+        if (a.rsi1h !== b.rsi1h) return a.rsi1h - b.rsi1h;
+        return b.quoteVolume - a.quoteVolume;
+      })
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+
+    const above70 = results
+      .filter(item => item.rsi1h > 70)
+      .sort((a, b) => {
+        if (a.rsi1h !== b.rsi1h) return b.rsi1h - a.rsi1h;
+        return b.quoteVolume - a.quoteVolume;
+      })
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+
+    const payload = {
+      interval: '1h',
+      period: 14,
+      scanLimit: requestedScanLimit,
+      scannedCount: scanSymbols.length,
+      below30,
+      above70,
+      updatedAt: new Date(now).toISOString(),
+    };
+
+    futuresRsi1hScanCache = payload;
+    futuresRsi1hScanUpdatedAt = now;
+
+    return payload;
+  } catch (error) {
+    console.error('Error fetching futures RSI 1h scan:', error.message);
+    throw error;
+  }
+}
+
+// Get all tradable perpetual futures symbols
+export async function getFuturesSymbols() {
+  try {
+    const exchangeInfo = await futuresPublicRequest('/fapi/v1/exchangeInfo');
+
+    return exchangeInfo.symbols
+      .filter(s => s.status === 'TRADING' && s.contractType === 'PERPETUAL')
+      .map(s => {
+        const lotSizeFilter = s.filters.find(f => f.filterType === 'LOT_SIZE');
+        return {
+          symbol: s.symbol,
+          baseAsset: s.baseAsset,
+          quoteAsset: s.quoteAsset,
+          pricePrecision: s.pricePrecision,
+          quantityPrecision: s.quantityPrecision,
+          minQty: lotSizeFilter ? parseFloat(lotSizeFilter.minQty) : null,
+          stepSize: lotSizeFilter ? parseFloat(lotSizeFilter.stepSize) : null,
+        };
+      })
+      .sort((a, b) => a.symbol.localeCompare(b.symbol));
+  } catch (error) {
+    console.error('Error fetching futures symbols:', error.message);
+    throw error;
+  }
+}
+
+// Set leverage for a specific futures symbol
+export async function setFuturesLeverage(symbol, leverage = 30) {
+  const leverageValue = parseInt(leverage, 10);
+  if (!symbol || !Number.isFinite(leverageValue)) {
+    throw new Error('Invalid symbol or leverage');
+  }
+
+  return futuresSignedPost('/fapi/v1/leverage', {
+    symbol: symbol.toUpperCase(),
+    leverage: leverageValue,
+  });
+}
+
+// Place a futures market order
+export async function placeFuturesMarketOrder({ symbol, side, quantity }) {
+  const normalizedSide = String(side || '').toUpperCase();
+  const normalizedQuantity = Number(quantity);
+
+  if (!symbol || !['BUY', 'SELL'].includes(normalizedSide)) {
+    throw new Error('Invalid symbol or side');
+  }
+
+  if (!Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) {
+    throw new Error('Quantity must be a positive number');
+  }
+
+  return futuresSignedPost('/fapi/v1/order', {
+    symbol: symbol.toUpperCase(),
+    side: normalizedSide,
+    type: 'MARKET',
+    quantity: normalizedQuantity.toString(),
+    newOrderRespType: 'RESULT',
+  });
+}
+
+function normalizeTriggerPrice(rawPrice, pricePrecision = null) {
+  const parsedPrice = Number(rawPrice);
+  if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+    return null;
+  }
+
+  const parsedPrecision = parseInt(pricePrecision, 10);
+  if (!Number.isFinite(parsedPrecision)) {
+    return parsedPrice.toString();
+  }
+
+  const safePrecision = Math.min(Math.max(parsedPrecision, 0), 8);
+  return parsedPrice.toFixed(safePrecision);
+}
+
+// Place optional protective futures exit orders (SL / TP) for an existing position.
+export async function placeFuturesExitOrders({
+  symbol,
+  entrySide,
+  stopLossPrice = null,
+  takeProfitPrice = null,
+  pricePrecision = null,
+}) {
+  const normalizedEntrySide = String(entrySide || '').toUpperCase();
+  if (!symbol || !['BUY', 'SELL'].includes(normalizedEntrySide)) {
+    throw new Error('Invalid symbol or entry side for SL/TP');
+  }
+
+  const stopLossTrigger = normalizeTriggerPrice(stopLossPrice, pricePrecision);
+  const takeProfitTrigger = normalizeTriggerPrice(takeProfitPrice, pricePrecision);
+
+  if (!stopLossTrigger && !takeProfitTrigger) {
+    throw new Error('No valid SL/TP price provided');
+  }
+
+  const exitSide = normalizedEntrySide === 'BUY' ? 'SELL' : 'BUY';
+  const response = {
+    stopLoss: null,
+    takeProfit: null,
+  };
+
+  if (stopLossTrigger) {
+    response.stopLoss = await futuresSignedPost('/fapi/v1/order', {
+      symbol: symbol.toUpperCase(),
+      side: exitSide,
+      type: 'STOP_MARKET',
+      stopPrice: stopLossTrigger,
+      closePosition: 'true',
+      workingType: 'MARK_PRICE',
+      priceProtect: 'true',
+    });
+  }
+
+  if (takeProfitTrigger) {
+    response.takeProfit = await futuresSignedPost('/fapi/v1/order', {
+      symbol: symbol.toUpperCase(),
+      side: exitSide,
+      type: 'TAKE_PROFIT_MARKET',
+      stopPrice: takeProfitTrigger,
+      closePosition: 'true',
+      workingType: 'MARK_PRICE',
+      priceProtect: 'true',
+    });
+  }
+
+  return response;
+}
 
 // Get futures account information
 export async function getFuturesAccount() {
