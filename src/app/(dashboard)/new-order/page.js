@@ -63,6 +63,18 @@ function computeTriggerPriceFromUsdt({ riskUsdt, side, quantity, markPrice, type
   return type === 'sl' ? price + delta : price - delta;
 }
 
+// Binance USDT-M futures maintenance margin tiers (approximate)
+// maintAmt is the bracket adjustment that makes liq price sensitive to order size
+function getMaintenanceTier(notionalUsdt) {
+  const n = Number(notionalUsdt);
+  if (n < 50000)    return { mmr: 0.0040, maintAmt: 0 };
+  if (n < 250000)   return { mmr: 0.0050, maintAmt: 50 };
+  if (n < 1000000)  return { mmr: 0.0100, maintAmt: 1300 };
+  if (n < 10000000) return { mmr: 0.0250, maintAmt: 16300 };
+  if (n < 20000000) return { mmr: 0.0500, maintAmt: 266300 };
+  return                   { mmr: 0.1000, maintAmt: 1266300 };
+}
+
 function buildCompoundMilestoneSummary({
   startingBalance,
   completedTradesCount,
@@ -393,6 +405,38 @@ export default function NewOrderPage() {
     setTakeProfitUsdt(usdtRisk);
   };
 
+  const usdtSliderPct = useMemo(() => {
+    if (!availableBalance || availableBalance <= 0) return 0;
+    const pct = (Number(usdtAmount) / availableBalance) * 100;
+    return Math.min(100, Math.max(0, Math.round(pct)));
+  }, [usdtAmount, availableBalance]);
+
+  const liquidationTier = useMemo(() => getMaintenanceTier(notionalValue), [notionalValue]);
+
+  const liquidationPrice = useMemo(() => {
+    const ep = currentPrice;
+    const lev = Number(leverage);
+    const usdt = Number(usdtAmount);
+    const balance = availableBalance;
+    const { mmr } = liquidationTier;
+    if (
+      !Number.isFinite(ep) || ep <= 0 ||
+      !Number.isFinite(lev) || lev <= 0 ||
+      !Number.isFinite(usdt) || usdt <= 0 ||
+      !Number.isFinite(balance) || balance <= 0
+    ) return null;
+    // Cross-margin style: at what price does the full balance get wiped?
+    // Long:  Liq = EP × (1 + MMR − balance / (usdt × lev))
+    // Short: Liq = EP × (1 − MMR + balance / (usdt × lev))
+    const balanceFactor = balance / (usdt * lev);
+    if (side === 'BUY') {
+      const liq = ep * (1 + mmr - balanceFactor);
+      return liq > 0 && liq < ep ? liq : null;
+    }
+    const liq = ep * (1 - mmr + balanceFactor);
+    return liq > ep ? liq : null;
+  }, [currentPrice, leverage, usdtAmount, availableBalance, side, liquidationTier]);
+
   const stopLossTriggerPreview = useMemo(() => {
     if (stopLossUsdt.trim() === '') return null;
     return computeTriggerPriceFromUsdt({
@@ -658,18 +702,29 @@ export default function NewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Leverage</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    max="125"
-                    value={leverage}
-                    onChange={(e) => setLeverage(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white"
-                  />
-                  <span className="text-gray-400 text-sm">x</span>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-400">Leverage</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="1"
+                      max="125"
+                      value={leverage}
+                      onChange={(e) => setLeverage(e.target.value)}
+                      className="w-14 bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-white text-xs text-center"
+                    />
+                    <span className="text-gray-400 text-xs">x</span>
+                  </div>
                 </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="125"
+                  step="1"
+                  value={Number(leverage) || 1}
+                  onChange={(e) => setLeverage(e.target.value)}
+                  className="w-full accent-blue-500 cursor-pointer"
+                />
                 <div className="grid grid-cols-4 gap-1.5 mt-2">
                   {[10, 20, 30, 50].map((value) => (
                     <button
@@ -698,17 +753,26 @@ export default function NewOrderPage() {
                   onChange={(e) => setUsdtAmount(e.target.value)}
                   className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white"
                 />
-                <div className="grid grid-cols-4 gap-1.5 mt-2">
-                  {[25, 50, 75, 100].map((pct) => (
-                    <button
-                      key={pct}
-                      type="button"
-                      onClick={() => setAmountByPercent(pct)}
-                      className="py-1 rounded-md text-xs border border-gray-700 text-gray-300 bg-gray-900 hover:bg-gray-800"
-                    >
-                      {pct}%
-                    </button>
-                  ))}
+                <div className="mt-2 space-y-1">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={usdtSliderPct}
+                    onChange={(e) => {
+                      const pct = Number(e.target.value);
+                      if (availableBalance > 0) {
+                        setUsdtAmount(((availableBalance * pct) / 100).toFixed(2));
+                      }
+                    }}
+                    className="w-full accent-blue-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-500">
+                    <span>0%</span>
+                    <span className="text-blue-300 font-medium">{usdtSliderPct}% of balance</span>
+                    <span>100%</span>
+                  </div>
                 </div>
                 {notionalValue > 0 && (
                   <p className="text-[11px] text-gray-400 mt-1">
@@ -816,6 +880,38 @@ export default function NewOrderPage() {
                   )}
                 </div>
               )}
+
+              {liquidationPrice !== null && estimatedQuantity > 0 && (() => {
+                const liqPct = (Number.isFinite(currentPrice) && currentPrice > 0 && Number.isFinite(liquidationPrice) && liquidationPrice > 0)
+                  ? Math.abs(((liquidationPrice - currentPrice) / currentPrice) * 100)
+                  : null;
+                const orderPct = (availableBalance > 0 && Number(usdtAmount) > 0)
+                  ? (Number(usdtAmount) / availableBalance) * 100
+                  : null;
+                return (
+                  <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400">Est. Liq Price <span className="text-gray-600">(MMR {(liquidationTier.mmr * 100).toFixed(2)}%)</span></span>
+                      <span className="text-sm font-semibold text-orange-300">
+                        {formatTriggerPrice(liquidationPrice)}
+                        {liqPct !== null && (
+                          <span className="text-[10px] text-gray-500 ml-1">({side === 'BUY' ? '▼' : '▲'} {liqPct.toFixed(2)}%)</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="border-t border-orange-500/20" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400">Order size</span>
+                      <span className="text-[12px] font-semibold text-red-400">
+                        {formatCurrency(Number(usdtAmount) || 0, 2)}
+                        {orderPct !== null && (
+                          <span className="text-[10px] font-normal text-red-500 ml-1">({orderPct.toFixed(1)}% of balance)</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-2 gap-2">
                 <button
