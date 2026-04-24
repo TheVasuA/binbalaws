@@ -8,11 +8,65 @@ import {
   getFuturesRsi1hScan,
   setFuturesLeverage,
   placeFuturesMarketOrder,
-  placeFuturesExitOrders,
   closePosition,
   getApiWeight
 } from '@/lib/binance';
 import { calculateFuturesRiskMetrics } from '@/lib/risk';
+import {
+  createFuturesOrderRecord,
+  getLatestStoredRiskByPosition,
+  listStoredOrders,
+} from '@/lib/order-db';
+
+function getRiskValue({ side, entryPrice, positionAmt, triggerPrice }) {
+  if (!Number.isFinite(triggerPrice)) {
+    return null;
+  }
+
+  if (side === 'LONG') {
+    return (triggerPrice - entryPrice) * positionAmt;
+  }
+
+  return (entryPrice - triggerPrice) * positionAmt;
+}
+
+function mergeStoredRiskIntoPositions(positions, storedRiskByPosition) {
+  return positions.map((position) => {
+    const normalizedSide = position.side === 'LONG' ? 'BUY' : 'SELL';
+    const storedRisk = storedRiskByPosition[`${position.symbol}:${normalizedSide}`];
+
+    if (!storedRisk) {
+      return position;
+    }
+
+    const stopLossPrice = position.stopLossPrice ?? storedRisk.stopLossPrice ?? null;
+    const takeProfitPrice = position.takeProfitPrice ?? storedRisk.takeProfitPrice ?? null;
+
+    return {
+      ...position,
+      stopLossPrice,
+      stopLossValue:
+        position.stopLossValue ??
+        getRiskValue({
+          side: position.side,
+          entryPrice: position.entryPrice,
+          positionAmt: position.positionAmt,
+          triggerPrice: stopLossPrice,
+        }),
+      stopLossSource: position.stopLossPrice ? 'exchange' : stopLossPrice ? 'app' : null,
+      takeProfitPrice,
+      takeProfitValue:
+        position.takeProfitValue ??
+        getRiskValue({
+          side: position.side,
+          entryPrice: position.entryPrice,
+          positionAmt: position.positionAmt,
+          triggerPrice: takeProfitPrice,
+        }),
+      takeProfitSource: position.takeProfitPrice ? 'exchange' : takeProfitPrice ? 'app' : null,
+    };
+  });
+}
 
 export async function GET(request) {
   try {
@@ -43,18 +97,24 @@ export async function GET(request) {
     } else if (type === 'orders') {
       const symbol = searchParams.get('symbol');
       data = await getFuturesOpenOrders(symbol);
+    } else if (type === 'storedOrders') {
+      const symbol = searchParams.get('symbol');
+      const limit = searchParams.get('limit') || '100';
+      data = await listStoredOrders({ symbol, limit });
     } else {
       // Default: get positions with account info
-      const [account, positions, rawOpenOrders] = await Promise.all([
+      const [account, positions, rawOpenOrders, storedRiskByPosition] = await Promise.all([
         getFuturesAccount(),
         getFuturesPositions(),
-        getFuturesOpenOrders()
+        getFuturesOpenOrders(),
+        getLatestStoredRiskByPosition(),
       ]);
-      const riskMetrics = calculateFuturesRiskMetrics(positions, account);
+      const mergedPositions = mergeStoredRiskIntoPositions(positions, storedRiskByPosition);
+      const riskMetrics = calculateFuturesRiskMetrics(mergedPositions, account);
       
       data = {
         account,
-        positions,
+        positions: mergedPositions,
         riskMetrics,
         _debug_openOrders: rawOpenOrders,
       };
@@ -139,30 +199,27 @@ export async function POST(request) {
         quantity,
       });
 
-      let riskOrders = null;
-      let riskOrdersError = null;
-
-      if (parsedStopLossPrice !== null || parsedTakeProfitPrice !== null) {
-        try {
-          riskOrders = await placeFuturesExitOrders({
-            symbol,
-            entrySide: normalizedSide,
-            stopLossPrice: parsedStopLossPrice,
-            takeProfitPrice: parsedTakeProfitPrice,
-            pricePrecision,
-          });
-        } catch (riskError) {
-          riskOrdersError = riskError.message;
-        }
-      }
+      const savedOrder = await createFuturesOrderRecord({
+        symbol,
+        side: normalizedSide,
+        quantity,
+        leverage: leverageValue,
+        orderResult,
+        leverageResult,
+        stopLossPrice: parsedStopLossPrice,
+        takeProfitPrice: parsedTakeProfitPrice,
+      });
 
       return NextResponse.json({
         success: true,
         data: {
           leverage: leverageResult,
           order: orderResult,
-          riskOrders,
-          riskOrdersError,
+          riskOrders: null,
+          riskOrdersError: null,
+          savedOrder,
+          riskStoredInDb:
+            parsedStopLossPrice !== null || parsedTakeProfitPrice !== null,
         },
       });
     }

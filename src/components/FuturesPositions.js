@@ -4,6 +4,35 @@
 import { useState, Fragment } from 'react';
 import { formatCurrency, formatCurrencyFull, formatPercent, getChangeColor } from '@/lib/utils';
 
+function RiskSourceBadge({ source }) {
+  if (!source) return null;
+
+  const isExchange = source === 'exchange';
+
+  return (
+    <span className={`ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+      isExchange
+        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+        : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+    }`}>
+      {isExchange ? 'Exchange' : 'App'}
+    </span>
+  );
+}
+
+function formatRiskValue(value) {
+  if (value === undefined || value === null) return '0.00';
+
+  const absoluteValue = Math.abs(Number(value));
+  if (!Number.isFinite(absoluteValue)) return '0.00';
+  if (absoluteValue === 0) return '0.00';
+
+  return absoluteValue.toLocaleString('en-US', {
+    minimumFractionDigits: absoluteValue < 1 ? 5 : 2,
+    maximumFractionDigits: 8,
+  }).replace(/(\.\d*?[1-9])0+$/u, '$1');
+}
+
 // Accept pendingOrders prop
 export default function FuturesPositions({ positions, onRefresh, pendingOrders = [] }) {
   const [closing, setClosing] = useState(null);
@@ -236,6 +265,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 {position.takeProfitPrice ? (
                   <p className="text-green-400">
                     {formatCurrencyFull(position.takeProfitPrice)}
+                    <RiskSourceBadge source={position.takeProfitSource} />
                     <span className="text-green-400 text-xs ml-1">({formatCurrencyFull(position.takeProfitValue)})</span>
                   </p>
                 ) : (
@@ -261,6 +291,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                         : "text-yellow-400"
                     }>
                       {formatCurrencyFull(position.stopLossPrice)}
+                      <RiskSourceBadge source={position.stopLossSource} />
                       <span className={
                         position.stopLossPrice > position.entryPrice
                           ? "text-green-400 text-xs ml-1"
@@ -369,9 +400,12 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 <td className="py-4 px-4 text-right">
                   {position.takeProfitPrice ? (
                     <div>
-                      <div className="text-gray-300 text-xs">{formatCurrency(position.takeProfitPrice, 4).replace('$', '')}</div>
+                      <div className="text-gray-300 text-xs flex items-center justify-end">
+                        <span>{formatCurrency(position.takeProfitPrice, 4).replace('$', '')}</span>
+                        <RiskSourceBadge source={position.takeProfitSource} />
+                      </div>
                       <div className=" text-green-500 font-medium text-md ">
-                        {formatCurrency(position.takeProfitValue, 0).replace('$', '')}
+                        {formatRiskValue(position.takeProfitValue)}
                       </div>
                     </div>
                   ) : (
@@ -381,9 +415,10 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 <td className="py-4 px-4 text-right">
                   {position.stopLossPrice ? (
                       <div>
-                        <div className={ "text-gray-300 text-xs"
+                        <div className={ "text-gray-300 text-xs flex items-center justify-end"
                         }>
-                          {formatCurrency(position.stopLossPrice, 4).replace('$', '')}
+                          <span>{formatCurrency(position.stopLossPrice, 4).replace('$', '')}</span>
+                          <RiskSourceBadge source={position.stopLossSource} />
                         </div>
                         <div className={
                           position.side === 'SHORT'
@@ -394,7 +429,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                                 ? "text-green-400 text-md font-medium"
                                 : "text-red-500 text-md font-medium")
                         }>
-                          {formatCurrency(Math.abs(position.stopLossValue), 0).replace('$', '')}
+                          {formatRiskValue(position.stopLossValue)}
                         </div>
                       </div>
                     ) : (

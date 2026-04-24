@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getOpenOrders, getRecentTrades } from '@/lib/binance';
+import { listStoredOrders } from '@/lib/order-db';
 
 export async function GET(request) {
   try {
@@ -14,7 +15,10 @@ export async function GET(request) {
     }
 
     let data;
-    if (type === 'open' || type === 'pending') {
+    if (type === 'stored') {
+      const limit = searchParams.get('limit') || '100';
+      data = await listStoredOrders({ symbol, limit });
+    } else if (type === 'open' || type === 'pending') {
       data = await getOpenOrders(symbol);
     } else {
       data = await getRecentTrades(symbol || 'BTCUSDT');

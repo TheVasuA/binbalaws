@@ -868,15 +868,12 @@ export default function NewOrderPage() {
                   <p>
                     Order placed. ID: {submitResult.order?.orderId} | Symbol: {submitResult.order?.symbol} | Executed: {submitResult.order?.executedQty} | Leverage: {submitResult.leverage?.leverage}x
                   </p>
-                  {(submitResult.riskOrders?.stopLoss || submitResult.riskOrders?.takeProfit) && (
+                  {submitResult.savedOrder?.riskSetupStatus === 'stored_in_app_db' && (
                     <p className="mt-1 text-xs text-green-200">
-                      Exit orders armed:
-                      {submitResult.riskOrders?.stopLoss ? ' SL' : ''}
-                      {submitResult.riskOrders?.takeProfit ? ' TP' : ''}
+                      {submitResult.savedOrder?.requestedRisk?.stopLossPrice || submitResult.savedOrder?.requestedRisk?.takeProfitPrice ? 'SL/TP:' : ''}
+                      {submitResult.savedOrder?.requestedRisk?.stopLossPrice ? ` SL ${submitResult.savedOrder.requestedRisk.stopLossPrice}` : ''}
+                      {submitResult.savedOrder?.requestedRisk?.takeProfitPrice ? ` TP ${submitResult.savedOrder.requestedRisk.takeProfitPrice}` : ''}
                     </p>
-                  )}
-                  {submitResult.riskOrdersError && (
-                    <p className="mt-1 text-xs text-yellow-300">Entry placed, but SL/TP setup failed: {submitResult.riskOrdersError}</p>
                   )}
                 </div>
               )}

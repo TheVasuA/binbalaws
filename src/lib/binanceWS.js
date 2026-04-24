@@ -35,6 +35,18 @@ function mapWsOrderToShape(o) {
   };
 }
 
+function getRiskValue({ side, entryPrice, positionAmt, triggerPrice }) {
+  if (!Number.isFinite(triggerPrice)) {
+    return null;
+  }
+
+  if (side === 'LONG') {
+    return (triggerPrice - entryPrice) * positionAmt;
+  }
+
+  return (entryPrice - triggerPrice) * positionAmt;
+}
+
 // useBinanceFuturesStream
 // Manages:
 //   1. Futures user-data WebSocket (account + order events)
@@ -52,6 +64,64 @@ export function useBinanceFuturesStream({ initialData = null } = {}) {
   const keepaliveTimerRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const unmountedRef = useRef(false);
+
+  const syncStoredRiskForPosition = useCallback(async ({ symbol, side }) => {
+    try {
+      const response = await fetch(`/api/futures?type=storedOrders&symbol=${encodeURIComponent(symbol)}&limit=20`);
+      const result = await response.json();
+
+      if (!result?.success || !Array.isArray(result.data)) {
+        return;
+      }
+
+      const targetSide = side === 'LONG' ? 'BUY' : 'SELL';
+      const storedOrder = result.data.find((order) =>
+        String(order?.side || '').toUpperCase() === targetSide &&
+        (order?.requestedRisk?.stopLossPrice || order?.requestedRisk?.takeProfitPrice),
+      );
+
+      if (!storedOrder || unmountedRef.current) {
+        return;
+      }
+
+      setPositions((prev) =>
+        prev.map((position) => {
+          if (position.symbol !== symbol || position.side !== side) {
+            return position;
+          }
+
+          const stopLossPrice = position.stopLossPrice ?? storedOrder.requestedRisk?.stopLossPrice ?? null;
+          const takeProfitPrice = position.takeProfitPrice ?? storedOrder.requestedRisk?.takeProfitPrice ?? null;
+
+          return {
+            ...position,
+            stopLossPrice,
+            stopLossValue:
+              position.stopLossValue ??
+              getRiskValue({
+                side: position.side,
+                entryPrice: position.entryPrice,
+                positionAmt: position.positionAmt,
+                triggerPrice: stopLossPrice,
+              }),
+            stopLossSource: position.stopLossPrice ? 'exchange' : stopLossPrice ? 'app' : null,
+            takeProfitPrice,
+            takeProfitValue:
+              position.takeProfitValue ??
+              getRiskValue({
+                side: position.side,
+                entryPrice: position.entryPrice,
+                positionAmt: position.positionAmt,
+                triggerPrice: takeProfitPrice,
+              }),
+            takeProfitSource: position.takeProfitPrice ? 'exchange' : takeProfitPrice ? 'app' : null,
+          };
+        }),
+      );
+    } catch {
+      // Ignore app-risk backfill failures and keep the stream alive.
+    }
+  }, []);
 
   // Sync initialData whenever the REST call resolves.
   useEffect(() => {
@@ -133,6 +203,11 @@ export function useBinanceFuturesStream({ initialData = null } = {}) {
                 stopLossValue: null,
                 takeProfitPrice: null,
                 takeProfitValue: null,
+              });
+
+              syncStoredRiskForPosition({
+                symbol: pu.s,
+                side: posAmt > 0 ? 'LONG' : 'SHORT',
               });
             }
           });
@@ -217,7 +292,7 @@ export function useBinanceFuturesStream({ initialData = null } = {}) {
       default:
         break;
     }
-  }, []);
+  }, [syncStoredRiskForPosition]);
 
   // Connect futures user-data stream.
   const connectUserData = useCallback(async () => {
