@@ -1,0 +1,37 @@
+# Development compose — hot reload, port exposed directly on 3000
+# Usage:
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# The source tree is bind-mounted so edits on the host are reflected
+# instantly inside the container via Next.js fast-refresh.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: binbalaws-app-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"        # direct access — no nginx in dev
+    volumes:
+      - .:/app             # live source-code mount (hot reload)
+      - /app/node_modules  # prevent host node_modules from shadowing
+      - ./data:/app/data   # persist order DB between restarts
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true   # needed inside Docker on some hosts
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    driver: bridge

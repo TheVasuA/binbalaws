@@ -127,10 +127,18 @@ export function useBinanceFuturesStream({ initialData = null } = {}) {
   useEffect(() => {
     if (!initialData) return;
     if (initialData.account) setAccount(initialData.account);
-    if (initialData.positions) setPositions(initialData.positions);
+    if (initialData.positions) {
+      setPositions(initialData.positions);
+      // Backfill stored SL/TP for any existing position that has none from exchange
+      initialData.positions.forEach((pos) => {
+        if (!pos.stopLossPrice && !pos.takeProfitPrice) {
+          syncStoredRiskForPosition({ symbol: pos.symbol, side: pos.side });
+        }
+      });
+    }
     // openOrders is populated from _debug_openOrders (raw getFuturesOpenOrders output).
     if (initialData._debug_openOrders) setOpenOrders(initialData._debug_openOrders);
-  }, [initialData]);
+  }, [initialData, syncStoredRiskForPosition]);
 
   // Recalculate total unrealized PnL on account whenever positions change.
   useEffect(() => {
@@ -355,7 +363,12 @@ export function useBinanceFuturesStream({ initialData = null } = {}) {
             pos.side === 'LONG'
               ? (mp - pos.entryPrice) * pos.positionAmt
               : (pos.entryPrice - mp) * pos.positionAmt;
-          return { ...pos, markPrice: mp, unrealizedProfit: pnl };
+          // Recalculate ROE: PnL / (notional / leverage)
+          const margin = pos.isolatedMargin > 0
+            ? pos.isolatedMargin
+            : (Math.abs(pos.positionAmt * pos.entryPrice) / (pos.leverage || 1));
+          const roe = margin > 0 ? (pnl / margin) * 100 : 0;
+          return { ...pos, markPrice: mp, unrealizedProfit: pnl, roe };
         }),
       );
     };
