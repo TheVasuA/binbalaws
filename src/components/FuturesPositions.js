@@ -1,12 +1,56 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { formatCurrency, formatCurrencyFull, formatPercent, getChangeColor } from '@/lib/utils';
 
 // Accept pendingOrders prop
 export default function FuturesPositions({ positions, onRefresh, pendingOrders = [] }) {
   const [closing, setClosing] = useState(null);
+  const [partialCloseSymbol, setPartialCloseSymbol] = useState(null);
+  const [partialClosePct, setPartialClosePct] = useState(25);
+  const [partialSubmitting, setPartialSubmitting] = useState(false);
+  const [partialError, setPartialError] = useState('');
+
+  const openPartialClose = (symbol) => {
+    setPartialCloseSymbol(symbol);
+    setPartialClosePct(25);
+    setPartialError('');
+  };
+
+  const cancelPartialClose = () => {
+    setPartialCloseSymbol(null);
+    setPartialError('');
+  };
+
+  const handlePartialClose = async (position) => {
+    const totalQty = Math.abs(parseFloat(position.positionAmt));
+    const closeQty = parseFloat(((totalQty * partialClosePct) / 100).toFixed(8));
+    if (closeQty <= 0) return;
+
+    setPartialSubmitting(true);
+    setPartialError('');
+    try {
+      const response = await fetch('/api/futures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'closePosition',
+          symbol: position.symbol,
+          side: position.side,
+          quantity: closeQty,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Failed to close position');
+      setPartialCloseSymbol(null);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setPartialError(err.message);
+    } finally {
+      setPartialSubmitting(false);
+    }
+  };
 
   const handleForceClose = async (position) => {
     if (!confirm(`Are you sure you want to force close ${position.symbol} ${position.side} position?`)) {
@@ -233,12 +277,66 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 <span className="text-gray-400">Liq. Price</span>
                 <p className="text-orange-400">{formatCurrencyFull(position.liquidationPrice)}</p>
               </div>
+              <button
+                onClick={() => openPartialClose(position.symbol)}
+                disabled={closing === position.symbol}
+                className="mt-2 w-full py-1 rounded-md text-xs border border-blue-600 text-blue-300 bg-blue-900/30 hover:bg-blue-800/50 transition-colors"
+              >
+                Partial Close
+              </button>
+
+              {partialCloseSymbol === position.symbol && (() => {
+                const closeQty = (Math.abs(parseFloat(position.positionAmt)) * partialClosePct) / 100;
+                const pnl = position.side === 'LONG'
+                  ? (parseFloat(position.markPrice) - parseFloat(position.entryPrice)) * closeQty
+                  : (parseFloat(position.entryPrice) - parseFloat(position.markPrice)) * closeQty;
+                return (
+                <div className="mt-2 rounded-lg border border-blue-500/40 bg-gray-900 p-3 space-y-2">
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>Close {partialClosePct}% of position</span>
+                    <span className="text-white font-medium">
+                      {closeQty.toFixed(4)} / {Math.abs(parseFloat(position.positionAmt))}
+                    </span>
+                  </div>
+                  <input
+                    type="range" min="1" max="100" step="1"
+                    value={partialClosePct}
+                    onChange={(e) => setPartialClosePct(Number(e.target.value))}
+                    className="w-full accent-blue-500 cursor-pointer"
+                  />
+                  <div className="grid grid-cols-4 gap-1">
+                    {[25, 50, 75, 100].map((p) => (
+                      <button key={p} type="button" onClick={() => setPartialClosePct(p)}
+                        className={`py-1 rounded text-xs border transition-colors ${
+                          partialClosePct === p ? 'border-blue-500 text-blue-300 bg-blue-500/20' : 'border-gray-600 text-gray-300 bg-gray-800'
+                        }`}>{p}%</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between rounded bg-gray-800 px-3 py-1.5">
+                    <span className="text-[11px] text-gray-400">Realised PnL</span>
+                    <span className={`text-sm font-bold ${ pnl >= 0 ? 'text-green-400' : 'text-red-400' }`}>
+                      {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} USDT
+                    </span>
+                  </div>
+                  {partialError && <p className="text-xs text-red-400">{partialError}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={() => handlePartialClose(position)} disabled={partialSubmitting}
+                      className="flex-1 py-1.5 rounded text-xs font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white">
+                      {partialSubmitting ? 'Closing...' : `Close ${partialClosePct}%`}
+                    </button>
+                    <button onClick={cancelPartialClose} disabled={partialSubmitting}
+                      className="px-3 py-1.5 rounded text-xs border border-gray-600 text-gray-300 hover:bg-gray-800">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                );
+              })()}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Desktop Table View */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -258,8 +356,8 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
           </thead>
           <tbody>
             {sortedPositions.map((position, index) => (
+              <Fragment key={`${position.symbol}-${index}`}>
               <tr 
-                key={`${position.symbol}-${index}`}
                 className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors"
               >
                 <td className="py-4 px-4 text-right text-gray-300">
@@ -343,11 +441,12 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                   })()}
                 </td>
                 <td className="py-4 px-2 text-center">
-                  <button
-                    onClick={() => handleForceClose(position)}
-                    disabled={closing === position.symbol}
-                    className="p-0.4 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-400 text-blue-800 rounded transition-colors border border-gray-400"
-                    title="Force Close"
+                  <div className="flex flex-col items-center gap-1">
+                    <button
+                      onClick={() => handleForceClose(position)}
+                      disabled={closing === position.symbol}
+                      className="p-0.4 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-400 text-blue-800 rounded transition-colors border border-gray-400"
+                      title="Force Close"
                   >
                     {closing === position.symbol ? (
                       <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -360,8 +459,58 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                       </svg>
                     )}
                   </button>
+                  <button
+                    onClick={() => partialCloseSymbol === position.symbol ? cancelPartialClose() : openPartialClose(position.symbol)}
+                    disabled={closing === position.symbol}
+                    className="px-1.5 py-0.5 text-[10px] rounded border border-blue-600 text-blue-300 bg-blue-900/30 hover:bg-blue-800/50 transition-colors whitespace-nowrap"
+                  >
+                    {partialCloseSymbol === position.symbol ? 'Cancel' : 'Partial'}
+                  </button>
+                  </div>
                 </td>
               </tr>
+              {partialCloseSymbol === position.symbol && (() => {
+                const closeQty = (Math.abs(parseFloat(position.positionAmt)) * partialClosePct) / 100;
+                const pnl = position.side === 'LONG'
+                  ? (parseFloat(position.markPrice) - parseFloat(position.entryPrice)) * closeQty
+                  : (parseFloat(position.entryPrice) - parseFloat(position.markPrice)) * closeQty;
+                return (
+                <tr className="border-b border-blue-500/30 bg-blue-950/40">
+                  <td colSpan="11" className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-xs text-gray-400 whitespace-nowrap">Close</span>
+                      <input
+                        type="range" min="1" max="100" step="1"
+                        value={partialClosePct}
+                        onChange={(e) => setPartialClosePct(Number(e.target.value))}
+                        className="w-32 accent-blue-500 cursor-pointer"
+                      />
+                      <span className="text-xs font-semibold text-blue-300 w-10">{partialClosePct}%</span>
+                      <div className="flex gap-1">
+                        {[25, 50, 75, 100].map((p) => (
+                          <button key={p} type="button" onClick={() => setPartialClosePct(p)}
+                            className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
+                              partialClosePct === p ? 'border-blue-500 text-blue-300 bg-blue-500/20' : 'border-gray-600 text-gray-400 bg-gray-800'
+                            }`}>{p}%</button>
+                        ))}
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {closeQty.toFixed(4)} of {Math.abs(parseFloat(position.positionAmt))} contracts
+                      </span>
+                      <span className={`text-sm font-bold ${ pnl >= 0 ? 'text-green-400' : 'text-red-400' }`}>
+                        PnL: {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} USDT
+                      </span>
+                      {partialError && <span className="text-xs text-red-400">{partialError}</span>}
+                      <button onClick={() => handlePartialClose(position)} disabled={partialSubmitting}
+                        className="ml-auto px-3 py-1 rounded text-xs font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white">
+                        {partialSubmitting ? 'Closing...' : `Close ${partialClosePct}%`}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                );
+              })()}
+              </Fragment>
             ))}
           </tbody>
         </table>
