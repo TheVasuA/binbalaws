@@ -105,6 +105,35 @@ export async function listStoredOrders({ symbol = null, limit = 100 } = {}) {
     .slice(0, safeLimit);
 }
 
+export async function updateStoredRisk({ symbol, side, stopLossPrice, takeProfitPrice }) {
+  return withWriteLock(async () => {
+    const db = await readDb();
+    const now = new Date().toISOString();
+    const normalizedSymbol = String(symbol || '').toUpperCase();
+    const normalizedSide = String(side || '').toUpperCase();
+
+    const record = {
+      id: randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+      exchange: 'binance-futures',
+      orderKind: 'risk-update',
+      status: 'manual-update',
+      symbol: normalizedSymbol,
+      side: normalizedSide,
+      requestedRisk: {
+        stopLossPrice: serializeNumber(stopLossPrice),
+        takeProfitPrice: serializeNumber(takeProfitPrice),
+      },
+      riskSetupStatus: 'stored_in_app_db',
+    };
+
+    db.orders.unshift(record);
+    await writeDb(db);
+    return record;
+  });
+}
+
 export async function getLatestStoredRiskByPosition() {
   const db = await readDb();
 

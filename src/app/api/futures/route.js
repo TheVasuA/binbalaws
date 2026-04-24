@@ -12,10 +12,11 @@ import {
   getApiWeight
 } from '@/lib/binance';
 import { calculateFuturesRiskMetrics } from '@/lib/risk';
-import {
+import { 
   createFuturesOrderRecord,
   getLatestStoredRiskByPosition,
   listStoredOrders,
+  updateStoredRisk,
 } from '@/lib/order-db';
 
 function getRiskValue({ side, entryPrice, positionAmt, triggerPrice }) {
@@ -222,6 +223,39 @@ export async function POST(request) {
             parsedStopLossPrice !== null || parsedTakeProfitPrice !== null,
         },
       });
+    }
+
+    if (action === 'updateRisk') {
+      if (!symbol || !side) {
+        return NextResponse.json({
+          error: 'Missing required fields: symbol, side',
+        }, { status: 400 });
+      }
+
+      const parsedSL = stopLossPrice === null || stopLossPrice === undefined || stopLossPrice === ''
+        ? null : Number(stopLossPrice);
+      const parsedTP = takeProfitPrice === null || takeProfitPrice === undefined || takeProfitPrice === ''
+        ? null : Number(takeProfitPrice);
+
+      if (parsedSL !== null && (!Number.isFinite(parsedSL) || parsedSL <= 0)) {
+        return NextResponse.json({ error: 'stopLossPrice must be a positive number' }, { status: 400 });
+      }
+      if (parsedTP !== null && (!Number.isFinite(parsedTP) || parsedTP <= 0)) {
+        return NextResponse.json({ error: 'takeProfitPrice must be a positive number' }, { status: 400 });
+      }
+
+      const normalizedSide = String(side).toUpperCase() === 'LONG' ? 'BUY'
+        : String(side).toUpperCase() === 'SHORT' ? 'SELL'
+        : String(side).toUpperCase();
+
+      const saved = await updateStoredRisk({
+        symbol,
+        side: normalizedSide,
+        stopLossPrice: parsedSL,
+        takeProfitPrice: parsedTP,
+      });
+
+      return NextResponse.json({ success: true, data: saved });
     }
 
     if (action === 'closePosition') {

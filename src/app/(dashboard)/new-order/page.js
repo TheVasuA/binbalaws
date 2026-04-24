@@ -1,7 +1,39 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFetch, formatCurrency, formatNumber } from '@/lib/utils';
+
+function TradingViewChart({ symbol, interval }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    containerRef.current.innerHTML = '';
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      symbol: `BINANCE:${symbol}.P`,
+      width: '100%',
+      height: '100%',
+      interval,
+      timezone: 'Etc/UTC',
+      theme: 'dark',
+      style: '1',
+      locale: 'en',
+      allow_symbol_change: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      withdateranges: true,
+      save_image: false,
+      hide_volume: true,
+      support_host: 'https://www.tradingview.com',
+    });
+    containerRef.current.appendChild(script);
+  }, [symbol, interval]);
+
+  return <div ref={containerRef} className="h-full w-full" />;
+}
 
 const CHART_TIMEFRAMES = [
   { label: '1m', value: '1' },
@@ -464,30 +496,7 @@ export default function NewOrderPage() {
     return Number(value).toFixed(getSafePricePrecision(selectedSymbol));
   };
 
-  const tradingViewSrc = useMemo(() => {
-    const tvSymbol = `BINANCE:${(symbol || 'BTCUSDT').toUpperCase()}.P`;
-    const studies = JSON.stringify([
-      'BB@tv-basicstudies',
-      'StochasticRSI@tv-basicstudies',
-      'MACD@tv-basicstudies',
-    ]);
-    const params = new URLSearchParams({
-      symbol: tvSymbol,
-      interval: chartInterval,
-      theme: 'dark',
-      style: '1',
-      locale: 'en',
-      toolbarbg: '#1f2937',
-      withdateranges: '1',
-      hide_side_toolbar: '0',
-      hidevolume: '1',
-      hide_volume: '1',
-      allow_symbol_change: '0',
-      saveimage: '0',
-      studies,
-    });
-    return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
-  }, [symbol, chartInterval]);
+  // tradingViewSrc removed – using script-based TradingViewChart component instead
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -665,14 +674,10 @@ export default function NewOrderPage() {
               </div>
 
               <div className="h-[520px] rounded-lg border border-gray-700 overflow-hidden bg-gray-900">
-                <iframe
-                  key={`${symbol}-${chartInterval}-tv-indicators-v2`}
-                  title={`${symbol} TradingView chart`}
-                  src={tradingViewSrc}
-                  className="w-full h-full"
-                  frameBorder="0"
-                  allowTransparency="true"
-                  scrolling="no"
+                <TradingViewChart
+                  key={`${symbol}-${chartInterval}`}
+                  symbol={(symbol || 'BTCUSDT').toUpperCase()}
+                  interval={chartInterval}
                 />
               </div>
             </div>

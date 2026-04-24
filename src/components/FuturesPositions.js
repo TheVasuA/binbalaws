@@ -40,6 +40,79 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
   const [partialClosePct, setPartialClosePct] = useState(25);
   const [partialSubmitting, setPartialSubmitting] = useState(false);
   const [partialError, setPartialError] = useState('');
+  const [editRiskSymbol, setEditRiskSymbol] = useState(null);
+  const [editSLUsdt, setEditSLUsdt] = useState('');
+  const [editTPUsdt, setEditTPUsdt] = useState('');
+  const [editRiskSubmitting, setEditRiskSubmitting] = useState(false);
+  const [editRiskError, setEditRiskError] = useState('');
+
+  const openEditRisk = (position) => {
+    setEditRiskSymbol(position.symbol);
+    setEditSLUsdt(position.stopLossValue ? Math.abs(Number(position.stopLossValue)).toFixed(2) : '');
+    setEditTPUsdt(position.takeProfitValue ? Math.abs(Number(position.takeProfitValue)).toFixed(2) : '');
+    setEditRiskError('');
+  };
+
+  const cancelEditRisk = () => {
+    setEditRiskSymbol(null);
+    setEditRiskError('');
+  };
+
+  const handleSaveRisk = async (position) => {
+    const qty = Math.abs(parseFloat(position.positionAmt));
+    const entry = parseFloat(position.entryPrice);
+    if (!qty || !entry) return;
+
+    const slUsdt = parseFloat(editSLUsdt);
+    const tpUsdt = parseFloat(editTPUsdt);
+
+    let slPrice = null;
+    let tpPrice = null;
+
+    if (editSLUsdt !== '' && !isNaN(slUsdt) && slUsdt > 0) {
+      slPrice = position.side === 'LONG'
+        ? entry - slUsdt / qty
+        : entry + slUsdt / qty;
+      if (slPrice <= 0) {
+        setEditRiskError('Stop loss USDT value is too large for this position.');
+        return;
+      }
+    }
+
+    if (editTPUsdt !== '' && !isNaN(tpUsdt) && tpUsdt > 0) {
+      tpPrice = position.side === 'LONG'
+        ? entry + tpUsdt / qty
+        : entry - tpUsdt / qty;
+      if (tpPrice <= 0) {
+        setEditRiskError('Target USDT value is too large for this position.');
+        return;
+      }
+    }
+
+    setEditRiskSubmitting(true);
+    setEditRiskError('');
+    try {
+      const res = await fetch('/api/futures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'updateRisk',
+          symbol: position.symbol,
+          side: position.side,
+          stopLossPrice: slPrice,
+          takeProfitPrice: tpPrice,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to update risk');
+      setEditRiskSymbol(null);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setEditRiskError(err.message);
+    } finally {
+      setEditRiskSubmitting(false);
+    }
+  };
 
   const openPartialClose = (symbol) => {
     setPartialCloseSymbol(symbol);
@@ -315,6 +388,63 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
               >
                 Partial Close
               </button>
+              <button
+                onClick={() => editRiskSymbol === position.symbol ? cancelEditRisk() : openEditRisk(position)}
+                className="mt-1 w-full py-1 rounded-md text-xs border border-orange-600 text-orange-300 bg-orange-900/30 hover:bg-orange-800/50 transition-colors"
+              >
+                {editRiskSymbol === position.symbol ? 'Cancel Edit' : 'Edit SL / Target'}
+              </button>
+
+              {editRiskSymbol === position.symbol && (
+                <div className="mt-2 rounded-lg border border-orange-500/40 bg-gray-900 p-3 space-y-2">
+                  <p className="text-xs text-gray-400 font-semibold">Edit SL / Target (USDT risk amount)</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-red-400 block mb-0.5">Stop Loss (USDT)</label>
+                      <input
+                        type="number" min="0" step="0.01" placeholder="e.g. 50"
+                        value={editSLUsdt}
+                        onChange={(e) => setEditSLUsdt(e.target.value)}
+                        className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-green-400 block mb-0.5">Target (USDT)</label>
+                      <input
+                        type="number" min="0" step="0.01" placeholder="e.g. 100"
+                        value={editTPUsdt}
+                        onChange={(e) => setEditTPUsdt(e.target.value)}
+                        className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-green-500"
+                      />
+                    </div>
+                  </div>
+                  {editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
+                    <p className="text-[10px] text-red-300">
+                      SL Price ≈ {position.side === 'LONG'
+                        ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
+                        : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                    </p>
+                  )}
+                  {editTPUsdt && !isNaN(parseFloat(editTPUsdt)) && parseFloat(editTPUsdt) > 0 && (
+                    <p className="text-[10px] text-green-300">
+                      Target Price ≈ {position.side === 'LONG'
+                        ? (parseFloat(position.entryPrice) + parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
+                        : (parseFloat(position.entryPrice) - parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                    </p>
+                  )}
+                  {editRiskError && <p className="text-xs text-red-400">{editRiskError}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={() => handleSaveRisk(position)} disabled={editRiskSubmitting}
+                      className="flex-1 py-1.5 rounded text-xs font-semibold bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white">
+                      {editRiskSubmitting ? 'Saving...' : 'Save'}
+                    </button>
+                    <button onClick={cancelEditRisk} disabled={editRiskSubmitting}
+                      className="px-3 py-1.5 rounded text-xs border border-gray-600 text-gray-300 hover:bg-gray-800">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {partialCloseSymbol === position.symbol && (() => {
                 const closeQty = (Math.abs(parseFloat(position.positionAmt)) * partialClosePct) / 100;
@@ -501,9 +631,62 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                   >
                     {partialCloseSymbol === position.symbol ? 'Cancel' : 'Partial'}
                   </button>
+                  <button
+                    onClick={() => editRiskSymbol === position.symbol ? cancelEditRisk() : openEditRisk(position)}
+                    disabled={closing === position.symbol}
+                    className="px-1.5 py-0.5 text-[10px] rounded border border-orange-600 text-orange-300 bg-orange-900/30 hover:bg-orange-800/50 transition-colors whitespace-nowrap"
+                  >
+                    {editRiskSymbol === position.symbol ? 'Cancel' : 'SL/TP'}
+                  </button>
                   </div>
                 </td>
               </tr>
+              {editRiskSymbol === position.symbol && (
+                <tr className="border-b border-orange-500/30 bg-orange-950/40">
+                  <td colSpan="11" className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-xs text-orange-300 font-semibold whitespace-nowrap">Edit SL / Target (USDT)</span>
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[10px] text-red-400">SL:</label>
+                        <input
+                          type="number" min="0" step="0.01" placeholder="USDT"
+                          value={editSLUsdt}
+                          onChange={(e) => setEditSLUsdt(e.target.value)}
+                          className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500"
+                        />
+                        {editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
+                          <span className="text-[10px] text-red-300">
+                            ≈ {position.side === 'LONG'
+                              ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
+                              : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[10px] text-green-400">Target:</label>
+                        <input
+                          type="number" min="0" step="0.01" placeholder="USDT"
+                          value={editTPUsdt}
+                          onChange={(e) => setEditTPUsdt(e.target.value)}
+                          className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-green-500"
+                        />
+                        {editTPUsdt && !isNaN(parseFloat(editTPUsdt)) && parseFloat(editTPUsdt) > 0 && (
+                          <span className="text-[10px] text-green-300">
+                            ≈ {position.side === 'LONG'
+                              ? (parseFloat(position.entryPrice) + parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
+                              : (parseFloat(position.entryPrice) - parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                          </span>
+                        )}
+                      </div>
+                      {editRiskError && <span className="text-xs text-red-400">{editRiskError}</span>}
+                      <button onClick={() => handleSaveRisk(position)} disabled={editRiskSubmitting}
+                        className="ml-auto px-3 py-1 rounded text-xs font-semibold bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white">
+                        {editRiskSubmitting ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
               {partialCloseSymbol === position.symbol && (() => {
                 const closeQty = (Math.abs(parseFloat(position.positionAmt)) * partialClosePct) / 100;
                 const pnl = position.side === 'LONG'
