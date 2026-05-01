@@ -69,6 +69,25 @@ function mergeStoredRiskIntoPositions(positions, storedRiskByPosition) {
   });
 }
 
+async function loadFuturesSnapshot() {
+  const [account, positions, rawOpenOrders, storedRiskByPosition] = await Promise.all([
+    getFuturesAccount(),
+    getFuturesPositions(),
+    getFuturesOpenOrders(),
+    getLatestStoredRiskByPosition(),
+  ]);
+
+  const mergedPositions = mergeStoredRiskIntoPositions(positions, storedRiskByPosition);
+  const riskMetrics = calculateFuturesRiskMetrics(mergedPositions, account);
+
+  return {
+    account,
+    positions: mergedPositions,
+    openOrders: rawOpenOrders,
+    riskMetrics,
+  };
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -83,7 +102,6 @@ export async function GET(request) {
     let data;
     
     if (type === 'debug_orders') {
-      // Temporary debug: see raw open orders from Binance
       data = await getFuturesOpenOrders();
     } else if (type === 'symbols') {
       data = await getFuturesSymbols();
@@ -103,25 +121,9 @@ export async function GET(request) {
       const limit = searchParams.get('limit') || '100';
       data = await listStoredOrders({ symbol, limit });
     } else {
-      // Default: get positions with account info
-      const [account, positions, rawOpenOrders, storedRiskByPosition] = await Promise.all([
-        getFuturesAccount(),
-        getFuturesPositions(),
-        getFuturesOpenOrders(),
-        getLatestStoredRiskByPosition(),
-      ]);
-      const mergedPositions = mergeStoredRiskIntoPositions(positions, storedRiskByPosition);
-      const riskMetrics = calculateFuturesRiskMetrics(mergedPositions, account);
-      
-      data = {
-        account,
-        positions: mergedPositions,
-        riskMetrics,
-        _debug_openOrders: rawOpenOrders,
-      };
+      data = await loadFuturesSnapshot();
     }
 
-    // Get current API weight
     const apiWeight = getApiWeight();
 
     return NextResponse.json({
@@ -155,7 +157,6 @@ export async function POST(request) {
       leverage,
       stopLossPrice,
       takeProfitPrice,
-      pricePrecision,
     } = body;
 
     if (action === 'openPosition') {
@@ -281,5 +282,19 @@ export async function POST(request) {
     return NextResponse.json({
       error: error.message,
     }, { status: 500 });
+  }
+}
+
+export async function PATCH() {
+  try {
+    if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
+      return NextResponse.json({ error: 'API keys not configured' }, { status: 401 });
+    }
+
+    const snapshot = await loadFuturesSnapshot();
+    return NextResponse.json({ success: true, data: snapshot, lastUpdated: new Date().toISOString() });
+  } catch (error) {
+    console.error('Futures PATCH error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

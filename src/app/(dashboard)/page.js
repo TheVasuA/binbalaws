@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -13,7 +12,6 @@ import PositionCharts from '@/components/PositionCharts';
 export default function FuturesPage() {
   const [displayError, setDisplayError] = useState(null);
 
-  // One-time initial REST fetch (no polling).
   const {
     data: futuresData,
     loading: futuresLoading,
@@ -21,7 +19,6 @@ export default function FuturesPage() {
     refetch: refetchFutures,
   } = useFetch('/api/futures?type=positions');
 
-  // Live WebSocket stream.
   const {
     account: futuresAccount,
     positions: futuresPositions,
@@ -30,7 +27,6 @@ export default function FuturesPage() {
     error: wsError,
   } = useBinanceFuturesStream({ initialData: futuresData });
 
-  // Compute risk metrics client-side from live data.
   const futuresRiskMetrics = useMemo(
     () => calculateFuturesRiskMetrics(futuresPositions, futuresAccount),
     [futuresPositions, futuresAccount],
@@ -56,9 +52,7 @@ export default function FuturesPage() {
 
   return (
     <div className="max-w-full xl:max-w-screen-2xl mx-auto px-2 sm:px-6 lg:px-12 py-4 md:py-8 flex flex-col">
-      {/* Balance Header Card + Stats Cards Row - Sticky */}
       <div className="sticky top-16 z-30 flex flex-col md:flex-row gap-4 mb-6 bg-gray-900/95 backdrop-blur-md rounded-2xl border border-gray-700/50">
-        {/* Balance Header Card */}
         <div className="flex-1 min-w-0 relative overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 shadow-2xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
@@ -67,7 +61,6 @@ export default function FuturesPage() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <p className="text-gray-500 text-xs uppercase tracking-wider">Current Balance</p>
-                  {/* WebSocket connection indicator */}
                   <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} title={wsConnected ? 'Live' : 'Connecting...'} />
                   {wsConnected && <span className="text-green-400 text-xs font-mono">LIVE</span>}
                 </div>
@@ -94,19 +87,14 @@ export default function FuturesPage() {
             </div>
           </div>
         </div>
-        {/* Stats Cards */}
         <div className="flex-1 min-w-0 grid grid-cols-3 gap-2 md:gap-3">
           <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-2 md:p-3 border border-gray-700/50">
             <p className="text-gray-500 text-xs mb-1">Wallet</p>
-            <p className="text-base md:text-xl font-bold text-white">
-              {formatCurrency(futuresAccount?.totalWalletBalance || 0)}
-            </p>
+            <p className="text-base md:text-xl font-bold text-white">{formatCurrency(futuresAccount?.totalWalletBalance || 0)}</p>
           </div>
           <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-2 md:p-3 border border-gray-700/50">
             <p className="text-gray-500 text-xs mb-1">Margin</p>
-            <p className="text-base md:text-xl font-bold text-white">
-              {formatCurrency(futuresAccount?.availableBalance || 0)}
-            </p>
+            <p className="text-base md:text-xl font-bold text-white">{formatCurrency(futuresAccount?.availableBalance || 0)}</p>
           </div>
           <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-2 md:p-3 border border-gray-700/50">
             <p className="text-gray-500 text-xs mb-1">PnL</p>
@@ -117,7 +105,6 @@ export default function FuturesPage() {
         </div>
       </div>
 
-      {/* Futures Risk Metrics */}
       <section className="mb-4 md:mb-8">
         <h2 className="text-lg md:text-xl font-semibold text-white mb-3 md:mb-4">Futures Risk Analysis</h2>
         {futuresLoading && !futuresAccount ? (
@@ -129,7 +116,6 @@ export default function FuturesPage() {
         )}
       </section>
 
-      {/* Futures Positions */}
       <section className="bg-gray-800/50 rounded-xl border border-gray-700 p-3 md:p-6 mb-4 md:mb-8">
         <h2 className="text-lg md:text-xl font-semibold text-white mb-3 md:mb-4">Open Positions</h2>
         {futuresLoading && !futuresData ? (
@@ -145,12 +131,10 @@ export default function FuturesPage() {
         )}
       </section>
 
-      {/* Position Charts */}
       {futuresPositions && futuresPositions.length > 0 && (
         <PositionCharts positions={futuresPositions} />
       )}
 
-      {/* Error Card - fixed to left side */}
       {displayError && (
         <div className="fixed bottom-4 left-4 z-50 max-w-xs w-[calc(100vw-2rem)] md:w-80">
           <div className="bg-gray-900 border border-red-500/60 rounded-xl shadow-2xl p-4">
