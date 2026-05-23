@@ -3,7 +3,7 @@
 import { useFetch, formatCurrency } from '@/lib/utils';
 
 export default function TradesHistory() {
-  const { data: trades, loading, error } = useFetch('/api/trades?type=pnl&limit=10', { refreshInterval: 10000 });
+  const { data: trades, loading, error } = useFetch('/api/trades?type=pnl&limit=10'); // no auto-refresh
 
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);

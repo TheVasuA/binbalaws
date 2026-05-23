@@ -38,22 +38,26 @@ function createSignature(queryString, secret) {
 // Cache for server time offset to avoid rate limiting
 let serverTimeOffset = null;
 let lastTimeSync = 0;
-const TIME_SYNC_INTERVAL = 1000; // Re-sync every 1 second
+const TIME_SYNC_INTERVAL = 30_000; // Re-sync every 30 seconds (was 5 min — too long for clock drift)
 
 // Get server time from Binance to avoid timestamp issues (with caching)
 async function getServerTime() {
+  const TS_SAFETY_MS = 500; // Safety buffer to avoid "ahead of server" error
   const now = Date.now();
   if (serverTimeOffset === null || now - lastTimeSync > TIME_SYNC_INTERVAL) {
     try {
       const response = await axios.get(`${getBaseUrl()}/api/v3/time`);
       serverTimeOffset = response.data.serverTime - now;
       lastTimeSync = now;
+      console.log('[TimeSync] Spot offset:', serverTimeOffset, 'ms');
     } catch (error) {
       // If we can't sync, use local time with cached offset
       if (serverTimeOffset === null) serverTimeOffset = 0;
+      console.warn('[TimeSync] Spot sync failed, offset:', serverTimeOffset);
     }
   }
-  return Date.now() + serverTimeOffset;
+  // Apply offset with safety buffer to ensure we're never ahead of server
+  return Date.now() + serverTimeOffset - TS_SAFETY_MS;
 }
 
 // Cache for futures server time offset
@@ -62,18 +66,24 @@ let lastFuturesTimeSync = 0;
 
 // Get futures server time (with caching)
 async function getFuturesServerTime() {
+  const TS_SAFETY_MS = 500; // Safety buffer to avoid "ahead of server" error
   const now = Date.now();
   if (futuresTimeOffset === null || now - lastFuturesTimeSync > TIME_SYNC_INTERVAL) {
     try {
       const response = await axios.get(`${getFuturesBaseUrl()}/fapi/v1/time`);
       futuresTimeOffset = response.data.serverTime - now;
       lastFuturesTimeSync = now;
+      console.log('[TimeSync] Futures offset:', futuresTimeOffset, 'ms');
     } catch (error) {
-      // If we can't sync, use local time with cached offset
-      if (futuresTimeOffset === null) futuresTimeOffset = 0;
+      // Sync failed — retry on next call by clearing cache
+      futuresTimeOffset = null;
+      console.warn('[TimeSync] Futures sync failed, will retry');
+      // Fallback: use local time (most systems are within 1s)
+      return Date.now() - TS_SAFETY_MS;
     }
   }
-  return Date.now() + futuresTimeOffset;
+  // Apply offset with safety buffer
+  return Date.now() + futuresTimeOffset - TS_SAFETY_MS;
 }
 
 // Make authenticated request to Binance API

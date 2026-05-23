@@ -16,21 +16,20 @@ function calcRSI(closes, period = 14) {
   return 100 - 100 / (1 + avgGain / avgLoss);
 }
 
+// Fetch RSI via our own server-side API (cached, no direct Binance calls from browser)
 function useRSI(symbol, interval) {
   const [rsi, setRsi] = useState(null);
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(
-          `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=16`
-        );
+        const res = await fetch(`/api/rsi?symbol=${symbol}&interval=${interval}`);
         const data = await res.json();
-        const closes = data.map(c => parseFloat(c[4]));
-        setRsi(calcRSI(closes));
+        if (data.rsi !== undefined) setRsi(data.rsi);
       } catch { /* ignore */ }
     }
     load();
-    const id = setInterval(load, 60000);
+    // Refresh every 5 minutes – RSI doesn't need per-minute updates
+    const id = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(id);
   }, [symbol, interval]);
   return rsi;

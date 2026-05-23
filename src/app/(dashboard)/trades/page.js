@@ -6,8 +6,8 @@ import { useFetch, formatCurrency } from '@/lib/utils';
 export default function TradesPage() {
   const [activeTab, setActiveTab] = useState('profits');
   
-  // Fetch last 1000 trades to cover ~1 month
-  const { data: trades, loading, error, refetch } = useFetch('/api/trades?type=pnl&limit=1000', { refreshInterval: 60000 });
+  // Fetch last 1000 trades – no auto-refresh, user can manually refresh
+  const { data: trades, loading, error, refetch } = useFetch('/api/trades?type=pnl&limit=1000');
 
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);

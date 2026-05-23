@@ -1,4 +1,29 @@
 services:
+  # ── FastAPI Backend ──────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: binbalaws-backend
+    restart: unless-stopped
+    expose:
+      - "8000"
+    env_file:
+      - .env
+    environment:
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8000
+      - CORS_ORIGINS=https://binbala.botprimex.com,http://localhost:3000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 2s
+      timeout: 2s
+      retries: 3
+      start_period: 2s
+    networks:
+      - web-network
+
+  # ── Next.js Frontend ─────────────────────────────────────────────────────
   app:
     build:
       context: .
@@ -13,15 +38,18 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - NEXT_PUBLIC_BACKEND_API_URL=http://backend:8000
+      - NEXT_PUBLIC_BACKEND_WS_URL=ws://backend:8000/ws/prices
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
+      interval: 2s
+      timeout: 2s
       retries: 3
-      start_period: 40s
+      start_period: 2s
     networks:
       - web-network
 
+  # ── Nginx Reverse Proxy ─────────────────────────────────────────────────
   nginx:
     image: nginx:alpine
     container_name: binbalaws-nginx
@@ -37,8 +65,10 @@ services:
       - web-network
       - chartapnext-api_default
     depends_on:
+      - backend
       - app
 
+  # ── Certbot ──────────────────────────────────────────────────────────────
   certbot:
     image: certbot/certbot:latest
     container_name: binbalaws-certbot

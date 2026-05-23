@@ -44,7 +44,7 @@ const CHART_TIMEFRAMES = [
   { label: '1d', value: 'D' },
   { label: '3d', value: '3D' },
 ];
-const REFRESH_INTERVAL_MS = 3 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes – prices come from WebSocket
 
 function normalizeOrderQuantity(rawQty, symbolInfo) {
   let quantity = Number(rawQty);
