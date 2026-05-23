@@ -6,8 +6,8 @@
   "installCommand": "npm install",
   "regions": ["sin1"],
   "env": {
-    "BINANCE_API_KEY": "32rnQzXXcljs6lF2vfoB9dIe7BBLJrxExupUkBNtYCSvYK4X12TmcKGy4MM7g2ha",
-    "BINANCE_API_SECRET": "0SBA16JN4kwiRPqszLP7z5iaNyKTPXDVpn5LJ5ISeOLrGg6x6pZOEVdcjMIuqYdf",
+    "BINANCE_API_KEY": "Extk9xv4CME6npRj6IQY8nkxV4CoUSsTPGWEKUQCmALGX7YVQVk77uoWxMJH7MJ5",
+    "BINANCE_API_SECRET": "jdTJRx8ZQj2XDDjgUpnFOP3k8fuhBN42zf5Hdh8HLSn83s98DoBfatRz4xIlwHjb",
     "BINANCE_TESTNET": "false",
     "UPSTASH_REDIS_REST_URL": "https://flying-weasel-5083.upstash.io",
     "UPSTASH_REDIS_REST_TOKEN": "ARPbAAImcDFmNDI0Njg2YmM3ZGY0YjU5YTgwZTFlNDYxNDM1NWFiMHAxNTA4Mw"

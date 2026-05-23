@@ -74,7 +74,7 @@ export function useBackendFuturesStream() {
   // ─── Poll every 2 seconds ─────────────────────────────────────────────────
   useEffect(() => {
     fetchAccount(); // immediate first fetch
-    const id = setInterval(fetchAccount, 2000);
+    const id = setInterval(fetchAccount, 3000);
     return () => clearInterval(id);
   }, [fetchAccount]);
 
