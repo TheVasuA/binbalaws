@@ -25,6 +25,124 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* ── Theme system ─────────────────────────────────────────────────────────
+   Themes are applied via `data-theme` on <html>. Each theme defines:
+     --app-bg    : the page background (body)
+     --surface   : card/panel background     (maps Tailwind bg-gray-800/900)
+     --surface-2 : slightly lighter surface   (maps bg-gray-800/50, gradients)
+     --border    : panel border color         (maps border-gray-700)
+   The overrides below re-tint the hardcoded Tailwind gray utilities so the
+   whole dashboard — not just the body — follows the theme.
+   Default (no attribute) keeps the original gray look. */
+html[data-theme] body.theme-bg {
+  background: var(--app-bg) fixed;
+  transition: background 0.3s ease;
+}
+
+/* Re-tint the common gray surface + border utilities used across the app.
+   Placed in a layer that comes AFTER Tailwind's utilities so these win, and
+   gradients are flattened to a solid theme surface (overriding background-image
+   is required because Tailwind precomputes --tw-gradient-stops). */
+/* Unlayered rules with !important — these beat Tailwind's layered utilities. */
+html[data-theme] .bg-gray-900,
+html[data-theme] .bg-gray-800\/50,
+html[data-theme] .bg-gray-800\/30 {
+  background-image: none !important;
+  background-color: var(--surface) !important;
+}
+
+html[data-theme] .bg-gray-800 {
+  background-image: none !important;
+  background-color: var(--surface-2) !important;
+}
+
+/* Only flatten gradient cards that use gray stops — leave colored text
+   gradients (e.g. from-green-400 bg-clip-text) untouched. */
+html[data-theme] .from-gray-900,
+html[data-theme] .from-gray-800 {
+  background-image: none !important;
+  background-color: var(--surface-2) !important;
+}
+
+html[data-theme] .border-gray-700,
+html[data-theme] .border-gray-700\/50,
+html[data-theme] .border-gray-800,
+html[data-theme] .border-gray-600 {
+  border-color: var(--border) !important;
+}
+
+/* Navbar / sticky headers that use gray-900 with opacity. */
+html[data-theme] .bg-gray-900\/95,
+html[data-theme] .bg-gray-900\/80,
+html[data-theme] .bg-gray-900\/50 {
+  background-color: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+  background-image: none !important;
+}
+
+/* 1. Midnight (default dark, gray) */
+html[data-theme="midnight"] {
+  --app-bg: #0b1220;
+  --surface: #111827;
+  --surface-2: #1f2937;
+  --border: #374151;
+}
+
+/* 2. Slate (cool blue-gray) */
+html[data-theme="slate"] {
+  --app-bg: #0b1220;
+  --surface: #0f172a;
+  --surface-2: #1e293b;
+  --border: #334155;
+}
+
+/* 3. Ocean (deep blue) */
+html[data-theme="ocean"] {
+  --app-bg: radial-gradient(1200px 800px at 20% -10%, #0b2540 0%, #071a2e 45%, #04101d 100%);
+  --surface: #0a1f36;
+  --surface-2: #0f2c4d;
+  --border: #1c3a5a;
+}
+
+/* 4. Forest (deep green) */
+html[data-theme="forest"] {
+  --app-bg: radial-gradient(1200px 800px at 80% -10%, #0c2a1f 0%, #08201a 45%, #04120e 100%);
+  --surface: #0a2119;
+  --surface-2: #103026;
+  --border: #1c4436;
+}
+
+/* 5. Grape (deep purple) */
+html[data-theme="grape"] {
+  --app-bg: radial-gradient(1200px 800px at 20% -10%, #221540 0%, #1a1030 45%, #100a1e 100%);
+  --surface: #1a1030;
+  --surface-2: #271748;
+  --border: #3a2668;
+}
+
+/* 6. Crimson (dark red) */
+html[data-theme="crimson"] {
+  --app-bg: radial-gradient(1200px 800px at 80% -10%, #3a1220 0%, #290c17 45%, #17070d 100%);
+  --surface: #250b13;
+  --surface-2: #37121e;
+  --border: #52202f;
+}
+
+/* 7. Carbon (near-black OLED) */
+html[data-theme="carbon"] {
+  --app-bg: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #161616;
+  --border: #2a2a2a;
+}
+
+/* 8. Sand (warm dark) */
+html[data-theme="sand"] {
+  --app-bg: radial-gradient(1200px 800px at 50% -10%, #2b2417 0%, #201b12 45%, #12100a 100%);
+  --surface: #1c1810;
+  --surface-2: #2a2417;
+  --border: #453b24;
+}
+
 /* Shimmer animation for progress bar */
 @keyframes shimmer {
   0% {

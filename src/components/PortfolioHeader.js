@@ -66,7 +66,15 @@ export default function PortfolioHeader({ totalValue, futuresAccount, lastUpdate
                 </svg>
               </div>
               <div>
-                <h1 className="text-lg md:text-2xl font-bold text-white">Bala Dashboard</h1>
+                <h1
+                  className="font-extrabold italic tracking-tight text-4xl md:text-6xl bg-gradient-to-b from-yellow-200 via-amber-400 to-orange-600 bg-clip-text text-transparent select-none leading-none"
+                  style={{
+                    fontFamily: "'Trebuchet MS', 'Segoe UI', system-ui, sans-serif",
+                    filter: "drop-shadow(0 1px 0 rgba(255,255,255,0.35)) drop-shadow(0 3px 2px rgba(0,0,0,0.6)) drop-shadow(0 6px 10px rgba(0,0,0,0.45))",
+                  }}
+                >
+                  10M$
+                </h1>
                 <p className="text-gray-500 text-xs md:text-sm flex items-center gap-1">
                   <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                   {lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleTimeString()}` : 'Live'}

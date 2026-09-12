@@ -183,7 +183,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 <span className="px-2 py-0.5 rounded text-xs font-semibold bg-yellow-500/20 text-yellow-400">Pending</span>
                 <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/20 text-blue-400">Limit</span>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <span className="text-gray-400">Side</span>
                   <p className="text-white">{order.side}</p>
@@ -215,27 +215,27 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
             )}
             {pendingOrders.length > 0 && pendingOrders.map((order, idx) => (
               <tr key={`pending-desktop-${order.orderId || idx}`} className="border-b border-yellow-700 bg-yellow-900/30">
-                <td className="py-4 px-4 text-right text-yellow-200">-</td>
-                <td className="py-4 px-4 text-right text-yellow-200">-</td>
-                <td className="py-4 px-4 text-right text-yellow-200">-</td>
-                <td className="py-4 px-4 text-right text-yellow-200">-</td>
-                <td className="py-4 px-4 text-right text-yellow-200">-</td>
-                <td className="py-4 px-4 text-center">
+                <td className="py-2 px-3 text-right text-yellow-200">-</td>
+                <td className="py-2 px-3 text-right text-yellow-200">-</td>
+                <td className="py-2 px-3 text-right text-yellow-200">-</td>
+                <td className="py-2 px-3 text-right text-yellow-200">-</td>
+                <td className="py-2 px-3 text-right text-yellow-200">-</td>
+                <td className="py-2 px-3 text-center">
                   <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-500/20 text-blue-400">Limit</span>
                 </td>
-                <td className="border-l border-yellow-700 py-4 px-4 text-shadow-lg/30">
+                <td className="border-l border-yellow-700 py-2 px-3 text-shadow-lg/30">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-yellow-400" />
                     <span className="font-medium text-yellow-300 text-lg">{order.symbol.replace(/USDT$/, '')}</span>
                   </div>
                 </td>
-                <td className="border-l border-yellow-700 py-4 px-4 text-right font-bold font-medium font-mono text-shadow-2xs text-shadow-gray-600 text-yellow-300">
+                <td className="border-l border-yellow-700 py-2 px-3 text-right font-bold font-medium font-mono text-shadow-2xs text-shadow-gray-600 text-yellow-300">
                   <div>{order.side}</div>
                 </td>
-                <td className="border-l border-yellow-700 py-4 px-4 text-right text-yellow-200">
+                <td className="border-l border-yellow-700 py-2 px-3 text-right text-yellow-200">
                   {formatCurrency(order.price)}
                 </td>
-                <td className="py-4 px-2 text-center">
+                <td className="py-2 px-2 text-center">
                   <span className="px-2 py-1 rounded text-xs font-semibold bg-yellow-500/20 text-yellow-400">Pending</span>
                 </td>
               </tr>
@@ -251,13 +251,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
   return (
     <>
       {/* Mobile Card View */}
-      <div className="block md:hidden space-y-4">
+      <div className="block md:hidden space-y-3">
         {sortedPositions.map((position, index) => (
           <div 
             key={`mobile-${position.symbol}-${index}`}
-            className="bg-gray-800 rounded-lg p-4 border border-gray-700"
+            className="bg-gray-800 rounded-lg p-3 border border-gray-700"
           >
-            <div className="flex justify-between items-start mb-3">
+            <div className="flex justify-between items-start mb-2">
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${position.side === 'LONG' ? 'bg-green-500' : 'bg-red-500'}`} />
                 <span className="font-medium text-white text-lg">{position.symbol}</span>
@@ -295,7 +295,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
               </button>
             </div>
             
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="text-gray-400">Size</span>
                 <p className="text-white">{position.positionAmt}</p>
@@ -476,16 +476,16 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-700">
-              <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Entry Price</th>
-              <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Mark Price</th>
-              <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Target</th>
-              <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Stop Loss</th>
-              <th className="text-right py-3 px-4 text-gray-400 font-medium text-sm">Liq. Price</th>
-              <th className="text-center py-3 px-4 text-gray-400 font-medium text-sm">Leverage</th>
-              <th className="border-l border-gray-700 text-left py-3 px-4 text-gray-400 font-medium text-sm">Symbol</th>
-              <th className=" text-right py-3 px-4 text-gray-400 font-medium text-sm">PnL</th>
-              <th className=" text-right py-3 px-4 text-gray-400 font-medium text-sm">USDT</th>
-              <th className="text-center py-3 px-2 text-gray-400 font-medium text-sm"></th>
+              <th className="text-right py-2 px-3 text-gray-400 font-medium text-sm">Entry Price</th>
+              <th className="text-right py-2 px-3 text-gray-400 font-medium text-sm">Mark Price</th>
+              <th className="text-right py-2 px-3 text-gray-400 font-medium text-sm">Target</th>
+              <th className="text-right py-2 px-3 text-gray-400 font-medium text-sm">Stop Loss</th>
+              <th className="text-right py-2 px-3 text-gray-400 font-medium text-sm">Liq. Price</th>
+              <th className="text-center py-2 px-3 text-gray-400 font-medium text-sm">Leverage</th>
+              <th className="border-l border-gray-700 text-left py-2 px-3 text-gray-400 font-medium text-sm">Symbol</th>
+              <th className=" text-right py-2 px-3 text-gray-400 font-medium text-sm">PnL</th>
+              <th className=" text-right py-2 px-3 text-gray-400 font-medium text-sm">USDT</th>
+              <th className="text-center py-2 px-2 text-gray-400 font-medium text-sm"></th>
             </tr>
           </thead>
           <tbody>
@@ -494,13 +494,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
               <tr 
                 className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors"
               >
-                <td className="py-4 px-4 text-right text-gray-300">
+                <td className="py-2 px-3 text-right text-gray-300">
                   {formatCurrency(position.entryPrice, 4).replace('$', '')}
                 </td>
-                <td className="py-4 px-4 text-right text-gray-300">
+                <td className="py-2 px-3 text-right text-gray-300">
                   {formatCurrency(position.markPrice, 4).replace('$', '')}
                 </td>
-                <td className="py-4 px-4 text-right">
+                <td className="py-2 px-3 text-right">
                   {position.takeProfitPrice ? (
                     <div>
                       <div className=" text-green-500 font-medium text-md ">
@@ -514,7 +514,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                     <span className="text-gray-500 text-sm">No Target</span>
                   )}
                 </td>
-                <td className="py-4 px-4 text-right">
+                <td className="py-2 px-3 text-right">
                   {position.stopLossPrice ? (
                       <div>
                         <div className={
@@ -537,10 +537,10 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                       <span className="text-gray-500 text-sm">No SL</span>
                     )}
                 </td>
-                <td className="py-4 px-4 text-right text-blue-400">
+                <td className="py-2 px-3 text-right text-blue-400">
                   {formatCurrency(position.liquidationPrice, 4).replace('$', '')}
                 </td>
-                <td className="py-4 px-4 text-center">
+                <td className="py-2 px-3 text-center">
                   <span className={`px-2 py-1 rounded text-xs font-semibold ${
                     position.leverage >= 20 ? 'bg-red-500/20 text-red-400' :
                     position.leverage >= 10 ? 'bg-yellow-500/20 text-yellow-400' :
@@ -549,19 +549,19 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                     {position.leverage}x
                   </span>
                 </td>
-                <td className="border-l border-gray-700 py-4 px-4 text-shadow-lg/30">
+                <td className="border-l border-gray-700 py-2 px-3 text-shadow-lg/30">
                   <div className="flex items-center gap-2 ">
                     <div className={`w-2 h-2 rounded-full ${position.side === 'LONG' ? 'bg-green-500' : 'bg-red-500'}`} />
                     <span className="font-medium text-yellow-400 text-lg">{position.symbol.replace(/USDT$/, '')}</span>
                   </div>
                 </td>
-                <td className={`text-lg border-l border-gray-700 py-4 px-4 text-right font-bold font-medium font-mono text-shadow-2xs text-shadow-gray-600 ${getChangeColor(position.unrealizedProfit)}`}> 
+                <td className={`text-lg border-l border-gray-700 py-2 px-3 text-right font-bold font-medium font-mono text-shadow-2xs text-shadow-gray-600 ${getChangeColor(position.unrealizedProfit)}`}> 
                   <div>₹{Math.round(Math.abs(Number(position.unrealizedProfit) * 100)).toLocaleString('en-IN')}</div>
                   <div className="text-sm opacity-40">
                     {Number(position.roe).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                   </div>
                 </td>
-                <td className="border-l border-gray-700 py-4 px-4 text-right text-orange-200 ">
+                <td className="border-l border-gray-700 py-2 px-3 text-right text-orange-200 ">
                   {(() => {
                     const value = Math.round(Math.abs(position.positionAmt * position.entryPrice));
                     if (value >= 1000) {
@@ -570,7 +570,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                     return value;
                   })()}
                 </td>
-                <td className="py-4 px-2 text-center">
+                <td className="py-2 px-2 text-center">
                   <div className="flex flex-col items-center gap-1">
                     <button
                       onClick={() => handleForceClose(position)}
@@ -704,22 +704,22 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
           <table className="w-full">
             <thead>
               <tr className="border-b border-blue-700">
-                <th className="text-left py-3 px-4 text-blue-400 font-medium text-sm">Symbol</th>
-                <th className="text-left py-3 px-4 text-blue-400 font-medium text-sm">Position Value</th>
-                <th className="text-left py-3 px-4 text-blue-400 font-medium text-sm">Entry Price</th>
-                <th className="text-left py-3 px-4 text-blue-400 font-medium text-sm">Force Close</th>
+                <th className="text-left py-2 px-3 text-blue-400 font-medium text-sm">Symbol</th>
+                <th className="text-left py-2 px-3 text-blue-400 font-medium text-sm">Position Value</th>
+                <th className="text-left py-2 px-3 text-blue-400 font-medium text-sm">Entry Price</th>
+                <th className="text-left py-2 px-3 text-blue-400 font-medium text-sm">Force Close</th>
               </tr>
             </thead>
             <tbody>
               {pendingOrders.filter(order => order.type?.toUpperCase() === 'LIMIT').map((order, idx) => (
                 <tr key={`open-entry-${order.orderId || idx}`} className="border-b border-blue-700 bg-blue-900/30">
-                  <td className="py-3 px-4 text-blue-200">
+                  <td className="py-2 px-3 text-blue-200">
                     {order.symbol}
                     <span className={`ml-2 px-2 py-0.5 rounded text-md font-semibold ${order.side === 'buy' ?   'bg-green-500/20 text-green-400':'bg-red-500/20 text-red-400'}`}>{order.side}</span>
                   </td>
-                  <td className="py-3 px-4 text-blue-200">{(order.amount * order.price).toLocaleString('en-US', { maximumFractionDigits: 8 })}</td>
-                  <td className="py-3 px-4 text-blue-200">{order.price}</td>
-                  <td className="py-3 px-4 text-blue-200">
+                  <td className="py-2 px-3 text-blue-200">{(order.amount * order.price).toLocaleString('en-US', { maximumFractionDigits: 8 })}</td>
+                  <td className="py-2 px-3 text-blue-200">{order.price}</td>
+                  <td className="py-2 px-3 text-blue-200">
                     <button
                       className="bg-red-400 hover:bg-red-600 text-white rounded px-2 py-1 text-xs"
                       onClick={() => handleForceClose(order)}

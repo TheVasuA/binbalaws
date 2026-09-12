@@ -39,6 +39,7 @@ export function useBackendFuturesStream() {
   const [wsConnected, setWsConnected] = useState(false);
   const [error, setError] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [dailyPnl, setDailyPnl] = useState(null); // { realizedPnl, ... }
 
   const positionsRef = useRef(positions);
   positionsRef.current = positions;
@@ -59,6 +60,12 @@ export function useBackendFuturesStream() {
       setOpenOrders(d.openOrders || []);
       setError(null);
       setLoaded(true);
+
+      // Today's realized PnL for the circuit-breaker badge (best-effort).
+      fetch('/api/futures?type=dailyPnl')
+        .then((r) => r.json())
+        .then((j) => { if (j.success && j.data) setDailyPnl(j.data); })
+        .catch(() => { /* ignore */ });
 
       // Update positions but preserve WS-updated markPrice if newer
       if (d.positions) {
@@ -341,6 +348,7 @@ export function useBackendFuturesStream() {
     wsConnected,
     error,
     loaded,
+    dailyPnl,
     refetch: fetchAccount,
   };
 }

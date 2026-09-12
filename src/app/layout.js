@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Bala Dashboard",
+  title: "10M$",
   description: "Portfolio risk management dashboard for Binance",
   icons: {
     icon: "/icon.png",
@@ -22,8 +22,16 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        {/* Apply saved theme before paint to avoid a flash of the default theme. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('app_theme');if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}`,
+          }}
+        />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900 theme-bg`}
       >
         {children}
       </body>

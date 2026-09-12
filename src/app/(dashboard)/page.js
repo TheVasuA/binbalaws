@@ -1,40 +1,14 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { formatCurrency } from '@/lib/utils';
 import { useBackendFuturesStream } from '@/lib/backendWS';
+import { usePortfolioSettings } from '@/lib/settings';
 import { calculateFuturesRiskMetrics } from '@/lib/risk';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import FuturesPositions from '@/components/FuturesPositions';
 import FuturesRiskMetrics from '@/components/FuturesRiskMetrics';
 import PositionCharts from '@/components/PositionCharts';
-import ConnectionStatus from '@/components/ConnectionStatus';
-
-// ── Smooth animated balance counter ────────────────────────────────────────────
-function useAnimatedBalance(targetValue) {
-  const [displayValue, setDisplayValue] = useState(() => targetValue ?? 0);
-  const frameRef = useRef(null);
-
-  useEffect(() => {
-    const start = displayValue;
-    const end = targetValue ?? 0;
-    if (Math.abs(end - start) < 0.001) return;
-    const dur = 400;
-    let t0 = null;
-    function step(ts) {
-      if (!t0) t0 = ts;
-      const t = Math.min((ts - t0) / dur, 1);
-      const v = start + (end - start) * (1 - Math.pow(1 - t, 3));
-      setDisplayValue(v);
-      if (t < 1) frameRef.current = requestAnimationFrame(step);
-      else setDisplayValue(end);
-    }
-    frameRef.current = requestAnimationFrame(step);
-    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetValue]);
-  return displayValue;
-}
 
 export default function FuturesPage() {
   const [displayError, setDisplayError] = useState(null);
@@ -48,21 +22,33 @@ export default function FuturesPage() {
     error: wsError,
     refetch: refetchPositions,
     loaded,
+    dailyPnl,
   } = useBackendFuturesStream();
+
+  const { settings } = usePortfolioSettings();
 
   const mergedAccount = futuresAccount;
   const loading = !loaded;
   const hasData = !!futuresAccount;
 
+  // Danger badge when open positions exceed the configured maximum.
+  const openPositionCount = futuresPositions?.length || 0;
+  const maxOpenPositions = Number(settings?.maxOpenPositions) || 3;
+  const positionsOverLimit = openPositionCount > maxOpenPositions;
+
+  // Daily loss circuit breaker status.
+  const dailyLossLimitPercent = Number(settings?.dailyLossLimitPercent) || 10;
+  const marginBalance = Number(mergedAccount?.totalMarginBalance) || 0;
+  const dailyLossLimitUsd = marginBalance * (dailyLossLimitPercent / 100);
+  const todayRealized = Number(dailyPnl?.realizedPnl) || 0;
+  const todayLoss = Math.max(0, -todayRealized); // positive number = loss today
+  const breakerTripped = dailyLossLimitUsd > 0 && todayLoss >= dailyLossLimitUsd;
+  const breakerNear = !breakerTripped && dailyLossLimitUsd > 0 && todayLoss >= dailyLossLimitUsd * 0.7;
+
   const futuresRiskMetrics = useMemo(
     () => calculateFuturesRiskMetrics(futuresPositions, futuresAccount),
     [futuresPositions, futuresAccount],
   );
-
-  // ── Live running balance = wallet (REST 30s) + unrealized PnL (WS ~1s) ──
-  const rawBalance = futuresAccount?.currentBalance || 0;
-
-  const currentBalance = useAnimatedBalance(rawBalance);
 
   // Error display
   useEffect(() => {
@@ -89,31 +75,29 @@ export default function FuturesPage() {
           <div className="relative p-2 md:p-3">
             <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-2">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-gray-500 text-xs uppercase tracking-wider">Live Balance</p>
-                  <ConnectionStatus
-                    wsConnected={wsConnected}
-                    error={wsError}
-                    hasPositions={(futuresPositions?.length ?? 0) > 0}
-                    loading={loading}
-                  />
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  {positionsOverLimit && (
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                      ⚠ {openPositionCount} open · max {maxOpenPositions}
+                    </span>
+                  )}
+                  {breakerTripped && (
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-600/30 text-red-300 border border-red-500/60 animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                      🛑 Daily loss limit hit · orders blocked (−{formatCurrency(todayLoss)})
+                    </span>
+                  )}
+                  {breakerNear && (
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
+                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                      ⚠ Nearing daily loss limit (−{formatCurrency(todayLoss)} / {formatCurrency(dailyLossLimitUsd)})
+                    </span>
+                  )}
                 </div>
                 <p className="text-3xl md:text-4xl font-bold tabular-nums bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">
-                  {formatCurrency(currentBalance, 2)}
+                  {formatCurrency(mergedAccount?.totalMarginBalance || 0, 2)}
                 </p>
-                {futuresAccount?.totalUnrealizedProfit !== undefined && (
-                  <div className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors duration-300 ${
-                    futuresAccount.totalUnrealizedProfit >= 0
-                      ? 'bg-green-500/20 text-green-400'
-                      : 'bg-red-500/20 text-red-400'
-                  }`}>
-                    <span className="tabular-nums">
-                      {futuresAccount.totalUnrealizedProfit >= 0 ? '↑' : '↓'}{' '}
-                      {futuresAccount.totalUnrealizedProfit >= 0 ? '+' : ''}
-                      {formatCurrency(futuresAccount.totalUnrealizedProfit)} unrealized
-                    </span>
-                  </div>
-                )}
               </div>
               <div className="text-left md:text-right">
                 <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Goal Target</p>
@@ -147,14 +131,6 @@ export default function FuturesPage() {
               {(futuresAccount?.totalUnrealizedProfit || 0) >= 0 ? '+' : ''}
               {formatCurrency(futuresAccount?.totalUnrealizedProfit || 0)}
             </p>
-          </div>
-          <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-2 md:p-3 border border-gray-700/50 col-span-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-500">Margin Balance</span>
-              <span className="text-gray-300 tabular-nums">
-                {formatCurrency(mergedAccount?.totalMarginBalance || 0)}
-              </span>
-            </div>
           </div>
         </div>
       </div>

@@ -156,7 +156,7 @@ export default function NewOrderPage() {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [side, setSide] = useState('BUY');
   const [usdtAmount, setUsdtAmount] = useState('100');
-  const [leverage, setLeverage] = useState(20);
+  const [leverage, setLeverage] = useState(15);
   const [stopLossUsdt, setStopLossUsdt] = useState('');
   const [isStopLossEdited, setIsStopLossEdited] = useState(false);
   const [takeProfitUsdt, setTakeProfitUsdt] = useState('');

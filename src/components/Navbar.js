@@ -46,11 +46,10 @@ export default function Navbar({ onRefresh, loading, progressData }) {
 
   const navItems = [
     { href: '/', label: 'Futures' },
-    { href: '/signals', label: '📡 Signals' },
     { href: '/new-order', label: 'New Order' },
-    { href: '/spot', label: 'Spot' },
     { href: '/compound', label: '🎯 Goal' },
     { href: '/trades', label: '📊 History' },
+    { href: '/settings', label: '⚙️ Settings' },
   ];
 
   const isActive = (href) => pathname === href;
@@ -59,15 +58,23 @@ export default function Navbar({ onRefresh, loading, progressData }) {
     <>
       <nav className="bg-gray-800/80 backdrop-blur-sm border-b border-gray-700 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-14">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2">
+        <div className="flex items-center justify-between h-16 sm:h-20">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-3 pr-4 sm:pr-6 py-2">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                 </svg>
               </div>
-              <span className="text-white font-bold block text-[15px] sm:text-base">Bala Dashboard</span>
+              <span
+                className="block font-extrabold italic tracking-tight text-2xl sm:text-3xl bg-gradient-to-b from-yellow-200 via-amber-400 to-orange-600 bg-clip-text text-transparent select-none"
+                style={{
+                  fontFamily: "'Trebuchet MS', 'Segoe UI', system-ui, sans-serif",
+                  filter: "drop-shadow(0 1px 0 rgba(255,255,255,0.35)) drop-shadow(0 2px 1px rgba(0,0,0,0.6)) drop-shadow(0 4px 6px rgba(0,0,0,0.45))",
+                }}
+              >
+                10M$
+              </span>
             </Link>
             
             {/* Desktop Nav */}
@@ -159,34 +166,58 @@ export default function Navbar({ onRefresh, loading, progressData }) {
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        {menuOpen && (
-          <div className="sm:hidden pb-3 animate-fadeIn">
-            <div className="flex flex-col gap-1">
-              {navItems.map((item) => (
-                isActive(item.href) ? (
-                  <span
-                    key={item.href}
-                    className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg"
-                  >
-                    {item.label}
-                  </span>
-                ) : (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMenuOpen(false)}
-                    className="px-3 py-2 text-gray-400 hover:text-white text-sm font-medium rounded-lg hover:bg-gray-700/50 transition-colors"
-                  >
-                    {item.label}
-                  </Link>
-                )
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </nav>
+
+      {/* ── Side Menu Drawer (mobile) ─────────────────────────────────────── */}
+      {/* Backdrop */}
+      <div
+        onClick={() => setMenuOpen(false)}
+        className={`sm:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
+          menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      />
+      {/* Sliding panel from the right */}
+      <aside
+        className={`sm:hidden fixed top-0 right-0 z-50 h-full w-72 max-w-[80%] bg-gray-900 border-l border-gray-700 shadow-2xl transform transition-transform duration-300 ${
+          menuOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between px-4 h-16 border-b border-gray-700">
+          <span className="text-white font-semibold">Menu</span>
+          <button
+            onClick={() => setMenuOpen(false)}
+            className="p-2 rounded-lg hover:bg-gray-800 text-gray-300"
+            aria-label="Close menu"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <nav className="flex flex-col gap-1 p-3">
+          {navItems.map((item) => (
+            isActive(item.href) ? (
+              <span
+                key={item.href}
+                className="px-3 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg"
+              >
+                {item.label}
+              </span>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2.5 text-gray-300 hover:text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                {item.label}
+              </Link>
+            )
+          ))}
+        </nav>
+      </aside>
+
       <MobileTradeSummary />
     </>
   );

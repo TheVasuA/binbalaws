@@ -347,65 +347,6 @@ export async function get24hrTickers(symbols) {
   }
 }
 
-// Calculate portfolio value in USD
-export async function calculatePortfolioValue(balances) {
-  try {
-    const prices = await getAllPrices();
-    const symbols = Object.keys(balances)
-      .filter(currency => currency !== 'USDT' && currency !== 'USD' && currency !== 'BUSD')
-      .map(currency => `${currency}USDT`);
-    
-    const tickers = symbols.length > 0 ? await get24hrTickers(symbols) : {};
-    
-    let totalValue = 0;
-    const holdings = [];
-    
-    for (const [currency, amount] of Object.entries(balances)) {
-      let valueUSD = 0;
-      let price = 0;
-      let change24h = 0;
-      
-      if (currency === 'USDT' || currency === 'USD' || currency === 'BUSD') {
-        valueUSD = amount.total;
-        price = 1;
-      } else {
-        const symbol = `${currency}USDT`;
-        if (prices[symbol]) {
-          price = prices[symbol];
-          change24h = tickers[symbol]?.change24h || 0;
-          valueUSD = amount.total * price;
-        }
-      }
-      
-      if (valueUSD > 0.01) {
-        holdings.push({
-          currency,
-          amount: amount.total,
-          free: amount.free,
-          used: amount.used,
-          price,
-          valueUSD,
-          change24h,
-        });
-        totalValue += valueUSD;
-      }
-    }
-    
-    // Calculate allocation percentages
-    holdings.forEach(holding => {
-      holding.allocation = (holding.valueUSD / totalValue) * 100;
-    });
-    
-    // Sort by value descending
-    holdings.sort((a, b) => b.valueUSD - a.valueUSD);
-    
-    return { totalValue, holdings };
-  } catch (error) {
-    console.error('Error calculating portfolio value:', error.message);
-    throw error;
-  }
-}
-
 // Get open orders
 export async function getOpenOrders(symbol = undefined) {
   try {
@@ -1241,6 +1182,40 @@ export async function getFuturesTradeHistory(limit = 10) {
     })).sort((a, b) => b.timestamp - a.timestamp);
   } catch (error) {
     console.error('Error fetching futures trade history:', error.message);
+    throw error;
+  }
+}
+
+// Sum today's realized PnL (net of commission + funding) for the circuit breaker.
+// "Today" starts at local midnight of the server clock.
+export async function getTodayRealizedPnl() {
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startTime = startOfDay.getTime();
+
+    // Income since midnight; REALIZED_PNL, COMMISSION and FUNDING_FEE net out to
+    // the true realized change for the day.
+    const income = await futuresAuthenticatedRequest('/fapi/v1/income', {
+      startTime,
+      limit: 1000,
+    });
+
+    const relevant = new Set(['REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE']);
+    let realizedPnl = 0;
+    for (const item of income || []) {
+      if (relevant.has(item.incomeType)) {
+        realizedPnl += parseFloat(item.income) || 0;
+      }
+    }
+
+    return {
+      realizedPnl,               // net USDT gained/lost today (negative = loss)
+      startTime,
+      asOf: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Error fetching today realized PnL:', error.message);
     throw error;
   }
 }

@@ -11,6 +11,7 @@ import {
   placeFuturesExitOrders,
   cancelFuturesExitOrders,
   closePosition,
+  getTodayRealizedPnl,
   getApiWeight
 } from '@/lib/binance';
 import { calculateFuturesRiskMetrics } from '@/lib/risk';
@@ -19,6 +20,23 @@ import {
   listStoredOrders,
   updateStoredRisk,
 } from '@/lib/order-db';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
+
+// Read the daily-loss circuit-breaker limit from saved settings (default 10%).
+async function getDailyLossLimitPercent() {
+  try {
+    const s = await redis.get('portfolio_settings');
+    const v = Number(s?.dailyLossLimitPercent);
+    return Number.isFinite(v) && v > 0 ? v : 10;
+  } catch {
+    return 10;
+  }
+}
 
 // SL/TP values come exclusively from the Binance Futures exchange (open orders).
 // The local DB is no longer used as a source for displayed risk values — it is
@@ -65,6 +83,8 @@ export async function GET(request) {
       data = await getFuturesRsi1hScan(scanLimit);
     } else if (type === 'account') {
       data = await getFuturesAccount();
+    } else if (type === 'dailyPnl') {
+      data = await getTodayRealizedPnl();
     } else if (type === 'orders') {
       const symbol = searchParams.get('symbol');
       data = await getFuturesOpenOrders(symbol);
@@ -118,7 +138,7 @@ export async function POST(request) {
         }, { status: 400 });
       }
 
-      const leverageValue = Number.isFinite(parseInt(leverage, 10)) ? parseInt(leverage, 10) : 30;
+      const leverageValue = Number.isFinite(parseInt(leverage, 10)) ? parseInt(leverage, 10) : 15;
       const normalizedSide = String(side).toUpperCase() === 'LONG'
         ? 'BUY'
         : String(side).toUpperCase() === 'SHORT'
@@ -145,6 +165,39 @@ export async function POST(request) {
           error: 'takeProfitPrice must be a positive number',
         }, { status: 400 });
       }
+
+      // ── Daily loss circuit breaker ─────────────────────────────────────
+      // Block new entries once today's realized loss reaches the configured
+      // % of margin balance. Enforced server-side so it can't be bypassed.
+      //
+      // Exception: "huge" orders with leverage >= 20x bypass the breaker
+      // entirely — no daily-loss / margin check applies to them.
+      const HUGE_ORDER_LEVERAGE = 20;
+      const isHugeOrder = leverageValue >= HUGE_ORDER_LEVERAGE;
+
+      if (!isHugeOrder) {
+      try {
+        const [lossLimitPercent, dailyPnl, account] = await Promise.all([
+          getDailyLossLimitPercent(),
+          getTodayRealizedPnl(),
+          getFuturesAccount(),
+        ]);
+        const marginBalance = Number(account?.totalMarginBalance) || 0;
+        const lossLimitUsd = marginBalance * (lossLimitPercent / 100);
+        const realizedLoss = Math.max(0, -(dailyPnl?.realizedPnl || 0)); // positive = loss
+
+        if (lossLimitUsd > 0 && realizedLoss >= lossLimitUsd) {
+          return NextResponse.json({
+            error: `Daily loss circuit breaker tripped. Today's loss ${realizedLoss.toFixed(2)} USDT has reached the ${lossLimitPercent}% limit (${lossLimitUsd.toFixed(2)} USDT of margin). No new orders until tomorrow.`,
+            circuitBreaker: true,
+          }, { status: 403 });
+        }
+      } catch (err) {
+        // If the check itself fails, do not silently allow — log and continue
+        // only for transient errors (order still requires SL etc. downstream).
+        console.error('Circuit breaker check failed:', err.message);
+      }
+      } // end circuit-breaker (skipped for huge >= 20x orders)
 
       const leverageResult = await setFuturesLeverage(symbol, leverageValue);
       const orderResult = await placeFuturesMarketOrder({
