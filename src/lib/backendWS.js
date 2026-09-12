@@ -6,13 +6,20 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  * Live Futures Portfolio Hook
  *
  * How it works:
- *   - Polls GET /api/futures?type=positions every 2 seconds for full account snapshot
- *   - Connects to Binance Futures WebSocket for real-time mark price updates
- *   - Computes live PnL from WebSocket price ticks between REST polls
+ *   - Full snapshot (positions + SL/TP algo orders) ONCE on load, then every 5 min
+ *   - Public @miniTicker WebSocket → live price → live PnL / portfolio value
+ *   - Authenticated User Data Stream → LIVE wallet balance + open orders (pushed
+ *     instantly by Binance via ACCOUNT_UPDATE / ORDER_TRADE_UPDATE)
+ *   - A 60s REST poll remains only as a fallback if a stream is briefly down
  *
- * This is intentionally simple. REST every 2s guarantees data freshness.
- * WebSocket fills the gaps between polls with sub-second price updates.
+ * SL/TP stay on the slow 5-min cycle (they rarely change and the algo-order
+ * fetch is heavier).
  */
+
+const REST_REFRESH_MS = 5 * 60_000;  // 5 min — positions + SL/TP (algo orders)
+const BALANCE_REFRESH_MS = 5_000;    // 5s — wallet balance + open orders (also
+                                     // covers networks where the User Data Stream
+                                     // WS connects but delivers no frames)
 
 const WS_URL = process.env.NEXT_PUBLIC_BINANCE_TESTNET === 'true'
   ? 'wss://stream.binancefuture.com'
@@ -36,7 +43,7 @@ export function useBackendFuturesStream() {
   const positionsRef = useRef(positions);
   positionsRef.current = positions;
 
-  const wsRef = useRef(null);
+  const wsRef = useRef(null); // holds the price EventSource (SSE)
   const symbolsRef = useRef('');
 
   // ─── REST: fetch account data ─────────────────────────────────────────────
@@ -71,12 +78,47 @@ export function useBackendFuturesStream() {
     }
   }, []);
 
-  // ─── Poll every 2 seconds ─────────────────────────────────────────────────
+  // ─── Light REST poll: wallet balance + open orders only ───────────────────
+  // Keeps live balance, total portfolio value and the pending-orders list fresh
+  // without re-fetching positions/SL-TP (which stay on the slow 5-min cycle).
+  const fetchBalanceAndOrders = useCallback(async () => {
+    try {
+      const [accRes, ordRes] = await Promise.all([
+        fetch('/api/futures?type=account'),
+        fetch('/api/futures?type=orders'),
+      ]);
+      const accJson = await accRes.json();
+      const ordJson = await ordRes.json();
+
+      if (accJson.success && accJson.data) {
+        // Merge only the balance fields; keep everything else the snapshot set.
+        setAccount(prev => ({ ...(prev || {}), ...accJson.data }));
+      }
+      if (ordJson.success && Array.isArray(ordJson.data)) {
+        setOpenOrders(ordJson.data);
+      }
+      setError(null);
+    } catch (err) {
+      console.error('[REST balance] Fetch error:', err.message);
+    }
+  }, []);
+
+  // ─── Full snapshot once on load, then every 5 minutes (positions + SL/TP) ──
   useEffect(() => {
-    fetchAccount(); // immediate first fetch
-    const id = setInterval(fetchAccount, 3000);
+    fetchAccount(); // immediate first fetch on browser load
+    const id = setInterval(fetchAccount, REST_REFRESH_MS);
     return () => clearInterval(id);
   }, [fetchAccount]);
+
+  // ─── Balance + orders safety refresh ──────────────────────────────────────
+  // The User Data Stream (below) pushes balance/orders live. This slow poll is
+  // only a fallback in case the stream is briefly down; it runs every 60s.
+  useEffect(() => {
+    if (!account) return; // wait for the first full snapshot
+    const id = setInterval(fetchBalanceAndOrders, BALANCE_REFRESH_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!account, fetchBalanceAndOrders]);
 
   // ─── Compute live balance from positions ──────────────────────────────────
   const liveAccount = account ? (() => {
@@ -97,103 +139,200 @@ export function useBackendFuturesStream() {
     };
   })() : null;
 
-  // ─── WebSocket: connect to miniTicker for live prices ─────────────────────
+  // ─── Live prices via server SSE proxy (EventSource) ───────────────────────
+  // A direct browser→Binance WebSocket does not deliver data frames on some
+  // networks (proxy/firewall drops them), which freezes PnL. The server-side
+  // SSE proxy (/api/futures/stream) polls mark prices and pushes them over
+  // plain HTTP, which passes through reliably. Live PnL / portfolio value is
+  // computed here from entryPrice on every price update.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (positions.length === 0) return;
 
     const symbols = [...new Set(positions.map(p => p.symbol.toLowerCase()))].sort();
     const key = symbols.join(',');
-
-    // Don't reconnect if symbols haven't changed
-    if (key === symbolsRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
-      return;
+    if (key === symbolsRef.current && wsRef.current) {
+      return; // already streaming this symbol set
     }
     symbolsRef.current = key;
 
-    // Close existing connection
+    // Close any existing EventSource
     if (wsRef.current) {
-      try { wsRef.current.close(1000); } catch {}
+      try { wsRef.current.close(); } catch {}
       wsRef.current = null;
     }
 
-    const streamUrl = `${WS_URL}/stream?streams=${symbols.map(s => `${s}@miniTicker`).join('/')}`;
-    let stopped = false;
-    let reconnectTimer = null;
-    let ws = null;
+    const url = `/api/futures/stream?symbols=${encodeURIComponent(symbols.join(','))}`;
+    const es = new EventSource(url);
+    wsRef.current = es;
 
-    function connect() {
+    es.onopen = () => {
+      console.log('[PriceSSE] Connected:', symbols.length, 'symbols');
+      setWsConnected(true);
+    };
+
+    es.onmessage = (e) => {
+      let payload;
+      try { payload = JSON.parse(e.data); } catch { return; }
+      if (payload?.connected) { setWsConnected(true); return; }
+      if (payload?.error) return;
+
+      // payload = { SYMBOL: markPrice, ... }
+      setPositions(prev => {
+        let changed = false;
+        const next = prev.map(p => {
+          const price = payload[p.symbol];
+          if (!Number.isFinite(price)) return p;
+          if (Math.abs((p.markPrice || 0) - price) < 1e-9) return p;
+          changed = true;
+          return {
+            ...p,
+            markPrice: price,
+            unrealizedProfit: calcPnl(p.side, p.positionAmt, p.entryPrice, price),
+          };
+        });
+        return changed ? next : prev;
+      });
+    };
+
+    es.onerror = () => {
+      // EventSource auto-reconnects; just reflect status.
+      setWsConnected(false);
+    };
+
+    return () => {
+      try { es.close(); } catch {}
+      if (wsRef.current === es) wsRef.current = null;
+      setWsConnected(false);
+    };
+  }, [positions.map(p => p.symbol).sort().join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── User Data Stream: LIVE wallet balance + open orders (authenticated) ──
+  // Binance pushes ACCOUNT_UPDATE (balances) and ORDER_TRADE_UPDATE (orders)
+  // the instant they change. This replaces the need to poll for them.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let stopped = false;
+    let ws = null;
+    let listenKey = null;
+    let reconnectTimer = null;
+    let keepaliveTimer = null;
+
+    async function fetchOrdersNow() {
+      try {
+        const res = await fetch('/api/futures?type=orders');
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) setOpenOrders(json.data);
+      } catch { /* ignore */ }
+    }
+
+    async function start() {
+      if (stopped) return;
+      try {
+        const res = await fetch('/api/listenkey?type=futures');
+        const json = await res.json();
+        listenKey = json.listenKey;
+        if (!listenKey) throw new Error('No listenKey');
+      } catch (err) {
+        console.error('[UserWS] listenKey failed:', err.message);
+        reconnectTimer = setTimeout(start, 5000);
+        return;
+      }
       if (stopped) return;
 
+      const url = `${WS_URL}/ws/${listenKey}`;
       try {
-        ws = new WebSocket(streamUrl);
-        wsRef.current = ws;
+        ws = new WebSocket(url);
       } catch {
-        reconnectTimer = setTimeout(connect, 2000);
+        reconnectTimer = setTimeout(start, 5000);
         return;
       }
 
       ws.onopen = () => {
-        console.log('[WS] Connected:', symbols.length, 'symbols');
-        setWsConnected(true);
+        console.log('[UserWS] ✅ Connected (live balance + orders)');
+        // Keepalive the listenKey every 30 min (Binance expires it after 60).
+        clearInterval(keepaliveTimer);
+        keepaliveTimer = setInterval(() => {
+          fetch(`/api/listenkey?type=futures&listenKey=${listenKey}`, { method: 'PUT' })
+            .catch(() => { /* ignore */ });
+        }, 30 * 60_000);
       };
 
       ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          const data = msg?.data;
-          if (!data?.s || !data?.c) return;
+        if (stopped) return;
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
 
-          const sym = data.s.toLowerCase();
-          const price = parseFloat(data.c);
-          if (!Number.isFinite(price)) return;
+        // Live wallet balance from ACCOUNT_UPDATE (event: 'ACCOUNT_UPDATE').
+        if (msg.e === 'ACCOUNT_UPDATE') {
+          const balances = msg.a?.B || [];
+          const usdt = balances.find(b => b.a === 'USDT');
+          if (usdt) {
+            const wallet = parseFloat(usdt.wb); // wallet balance
+            const crossWallet = parseFloat(usdt.cw);
+            setAccount(prev => ({
+              ...(prev || {}),
+              totalWalletBalance: Number.isFinite(wallet) ? wallet : prev?.totalWalletBalance,
+              availableBalance: Number.isFinite(crossWallet) ? crossWallet : prev?.availableBalance,
+            }));
+          }
 
-          // Update position mark price and PnL
-          setPositions(prev => {
-            let changed = false;
-            const next = prev.map(p => {
-              if (p.symbol.toLowerCase() !== sym) return p;
-              if (Math.abs((p.markPrice || 0) - price) < 0.000001) return p;
-              changed = true;
-              return {
-                ...p,
-                markPrice: price,
-                unrealizedProfit: calcPnl(p.side, p.positionAmt, p.entryPrice, price),
-              };
+          // Apply live position amount/entry changes so a new/closed position
+          // shows immediately (price/PnL still come from the miniTicker stream).
+          const posUpdates = msg.a?.P || [];
+          if (posUpdates.length) {
+            setPositions(prev => {
+              const map = new Map(prev.map(p => [p.symbol, p]));
+              posUpdates.forEach(u => {
+                const amt = parseFloat(u.pa);
+                if (!amt) { map.delete(u.s); return; } // position closed
+                const existing = map.get(u.s) || {};
+                map.set(u.s, {
+                  ...existing,
+                  symbol: u.s,
+                  positionAmt: Math.abs(amt),
+                  entryPrice: parseFloat(u.ep) || existing.entryPrice || 0,
+                  side: amt > 0 ? 'LONG' : 'SHORT',
+                  markPrice: existing.markPrice || parseFloat(u.ep) || 0,
+                  leverage: existing.leverage || 0,
+                });
+              });
+              return [...map.values()];
             });
-            return changed ? next : prev;
-          });
-        } catch {}
+          }
+        }
+
+        // Live open-orders list on any order lifecycle event.
+        if (msg.e === 'ORDER_TRADE_UPDATE') {
+          fetchOrdersNow();
+        }
       };
 
-      ws.onerror = () => {};
+      ws.onerror = () => { /* onclose handles reconnect */ };
 
       ws.onclose = () => {
-        wsRef.current = null;
+        clearInterval(keepaliveTimer);
         if (stopped) return;
-        setWsConnected(false);
-        reconnectTimer = setTimeout(connect, 1000);
+        console.log('[UserWS] Closed, reconnecting…');
+        reconnectTimer = setTimeout(start, 2000);
       };
     }
 
-    connect();
-
-    // Ping every 3 min to keep alive
-    const pingId = setInterval(() => {
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ method: 'PING' }));
-      }
-    }, 180000);
+    start();
 
     return () => {
       stopped = true;
       clearTimeout(reconnectTimer);
-      clearInterval(pingId);
-      if (ws) { try { ws.close(1000); } catch {} }
-      wsRef.current = null;
-      setWsConnected(false);
+      clearInterval(keepaliveTimer);
+      if (ws) { try { ws.close(1000); } catch { /* noop */ } }
+      // Best-effort close of the listenKey server-side.
+      if (listenKey) {
+        fetch(`/api/listenkey?type=futures&listenKey=${listenKey}`, { method: 'DELETE' })
+          .catch(() => { /* ignore */ });
+      }
     };
-  }, [positions.map(p => p.symbol).sort().join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // once per mount
 
   return {
     account: liveAccount,

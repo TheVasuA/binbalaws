@@ -307,13 +307,17 @@ export function useBinanceFuturesStream({ initialData = null } = {}) {
     }
   }, []);
 
-  // ── REST polling fallback (every 15s) — keeps balance live even if WS silent ──
+  // ── REST refresh (every 5 min) ──────────────────────────────────────────────
+  // The live WebSocket keeps mark price and PnL updating in real time. This slow
+  // REST poll only re-syncs positions, SL/TP (from the exchange) and balance so
+  // we don't hammer the Binance REST API. Initial data comes from the SSR/first
+  // load; this interval refreshes it every 5 minutes.
   const pollingRef = useRef(false);
   useEffect(() => {
     if (!account) return;
     if (pollingRef.current) return;
     pollingRef.current = true;
-    const POLL_MS = 2_000;
+    const POLL_MS = 5 * 60_000; // 5 minutes
     const interval = setInterval(() => {
       refetch();
     }, POLL_MS);

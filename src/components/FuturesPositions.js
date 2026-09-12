@@ -4,33 +4,12 @@
 import { useState, Fragment } from 'react';
 import { formatCurrency, formatCurrencyFull, formatPercent, getChangeColor } from '@/lib/utils';
 
-function RiskSourceBadge({ source }) {
-  if (!source) return null;
-
-  const isExchange = source === 'exchange';
-
-  return (
-    <span className={`ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-      isExchange
-        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-        : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
-    }`}>
-      {isExchange ? 'Exchange' : 'App'}
-    </span>
-  );
-}
-
-function formatRiskValue(value) {
-  if (value === undefined || value === null) return '0.00';
-
-  const absoluteValue = Math.abs(Number(value));
-  if (!Number.isFinite(absoluteValue)) return '0.00';
-  if (absoluteValue === 0) return '0.00';
-
-  return absoluteValue.toLocaleString('en-US', {
-    minimumFractionDigits: absoluteValue < 1 ? 5 : 2,
-    maximumFractionDigits: 8,
-  }).replace(/(\.\d*?[1-9])0+$/u, '$1');
+// Whole-dollar formatting for SL / Target risk values (no decimals).
+function formatRiskValueRounded(value) {
+  if (value === undefined || value === null) return '0';
+  const rounded = Math.round(Math.abs(Number(value)));
+  if (!Number.isFinite(rounded)) return '0';
+  return rounded.toLocaleString('en-US');
 }
 
 // Accept pendingOrders prop
@@ -229,7 +208,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
             {/* Pending Limit Orders - Desktop Table View */}
             {pendingOrders.length > 0 && (
               <tr className="bg-yellow-900">
-                <td colSpan="11" className="py-2 px-4 text-yellow-300 font-bold text-left border-t border-yellow-700">
+                <td colSpan="10" className="py-2 px-4 text-yellow-300 font-bold text-left border-t border-yellow-700">
                   Pending Limit Orders
                 </td>
               </tr>
@@ -252,9 +231,6 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 </td>
                 <td className="border-l border-yellow-700 py-4 px-4 text-right font-bold font-medium font-mono text-shadow-2xs text-shadow-gray-600 text-yellow-300">
                   <div>{order.side}</div>
-                </td>
-                <td className="border-l border-yellow-700 py-4 px-4 text-right font-bold font-mono text-yellow-300">
-                  {order.status}
                 </td>
                 <td className="border-l border-yellow-700 py-4 px-4 text-right text-yellow-200">
                   {formatCurrency(order.price)}
@@ -337,9 +313,8 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 <span className="text-gray-400">Target</span>
                 {position.takeProfitPrice ? (
                   <p className="text-green-400">
-                    {formatCurrencyFull(position.takeProfitPrice)}
-                    <RiskSourceBadge source={position.takeProfitSource} />
-                    <span className="text-green-400 text-xs ml-1">({formatCurrencyFull(position.takeProfitValue)})</span>
+                    {formatRiskValueRounded(position.takeProfitValue)}
+                    <span className="text-green-400 text-xs ml-1">({formatCurrencyFull(position.takeProfitPrice)})</span>
                   </p>
                 ) : (
                   <p className="text-gray-500">No Target</p>
@@ -363,14 +338,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                         ? "text-green-400"
                         : "text-yellow-400"
                     }>
-                      {formatCurrencyFull(position.stopLossPrice)}
-                      <RiskSourceBadge source={position.stopLossSource} />
+                      {formatRiskValueRounded(position.stopLossValue)}
                       <span className={
                         position.stopLossPrice > position.entryPrice
                           ? "text-green-400 text-xs ml-1"
                           : "text-red-400 text-xs ml-1"
                       }>
-                        ({formatCurrencyFull(Math.abs(position.stopLossValue))})
+                        ({formatCurrencyFull(position.stopLossPrice)})
                       </span>
                     </p>
                   ) : (
@@ -510,7 +484,6 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
               <th className="text-center py-3 px-4 text-gray-400 font-medium text-sm">Leverage</th>
               <th className="border-l border-gray-700 text-left py-3 px-4 text-gray-400 font-medium text-sm">Symbol</th>
               <th className=" text-right py-3 px-4 text-gray-400 font-medium text-sm">PnL</th>
-              <th className=" text-right py-3 px-4 text-gray-400 font-medium text-sm">PnL (INR)</th>
               <th className=" text-right py-3 px-4 text-gray-400 font-medium text-sm">USDT</th>
               <th className="text-center py-3 px-2 text-gray-400 font-medium text-sm"></th>
             </tr>
@@ -530,12 +503,11 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 <td className="py-4 px-4 text-right">
                   {position.takeProfitPrice ? (
                     <div>
+                      <div className=" text-green-500 font-medium text-md ">
+                        {formatRiskValueRounded(position.takeProfitValue)}
+                      </div>
                       <div className="text-gray-300 text-xs flex items-center justify-end">
                         <span>{formatCurrency(position.takeProfitPrice, 4).replace('$', '')}</span>
-                        <RiskSourceBadge source={position.takeProfitSource} />
-                      </div>
-                      <div className=" text-green-500 font-medium text-md ">
-                        {formatRiskValue(position.takeProfitValue)}
                       </div>
                     </div>
                   ) : (
@@ -545,11 +517,6 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 <td className="py-4 px-4 text-right">
                   {position.stopLossPrice ? (
                       <div>
-                        <div className={ "text-gray-300 text-xs flex items-center justify-end"
-                        }>
-                          <span>{formatCurrency(position.stopLossPrice, 4).replace('$', '')}</span>
-                          <RiskSourceBadge source={position.stopLossSource} />
-                        </div>
                         <div className={
                           position.side === 'SHORT'
                             ? (position.stopLossPrice > position.entryPrice
@@ -559,7 +526,11 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                                 ? "text-green-400 text-md font-medium"
                                 : "text-red-500 text-md font-medium")
                         }>
-                          {formatRiskValue(position.stopLossValue)}
+                          {formatRiskValueRounded(position.stopLossValue)}
+                        </div>
+                        <div className={ "text-gray-300 text-xs flex items-center justify-end"
+                        }>
+                          <span>{formatCurrency(position.stopLossPrice, 4).replace('$', '')}</span>
                         </div>
                       </div>
                     ) : (
@@ -585,16 +556,10 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                   </div>
                 </td>
                 <td className={`text-lg border-l border-gray-700 py-4 px-4 text-right font-bold font-medium font-mono text-shadow-2xs text-shadow-gray-600 ${getChangeColor(position.unrealizedProfit)}`}> 
-                  <div>{Number(Math.abs(position.unrealizedProfit)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div>₹{Math.round(Math.abs(Number(position.unrealizedProfit) * 100)).toLocaleString('en-IN')}</div>
                   <div className="text-sm opacity-40">
                     {Number(position.roe).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                   </div>
-                </td>
-                <td className={`border-l border-gray-700 py-4 px-4 text-right font-bold font-mono text-lg ${Number(position.unrealizedProfit) >= 0 ? 'text-green-400' : 'text-red-400'}`}> 
-                  {(() => {
-                    const inr = Math.abs(Number(position.unrealizedProfit) * 97);
-                    return inr.toLocaleString('en-IN', { maximumFractionDigits: 0 });
-                  })()}
                 </td>
                 <td className="border-l border-gray-700 py-4 px-4 text-right text-orange-200 ">
                   {(() => {
@@ -643,7 +608,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
               </tr>
               {editRiskSymbol === position.symbol && (
                 <tr className="border-b border-orange-500/30 bg-orange-950/40">
-                  <td colSpan="11" className="px-4 py-3">
+                  <td colSpan="10" className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="text-xs text-orange-300 font-semibold whitespace-nowrap">Edit SL / Target (USDT)</span>
                       <div className="flex items-center gap-1.5">
@@ -694,7 +659,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                   : (parseFloat(position.entryPrice) - parseFloat(position.markPrice)) * closeQty;
                 return (
                 <tr className="border-b border-blue-500/30 bg-blue-950/40">
-                  <td colSpan="11" className="px-4 py-3">
+                  <td colSpan="10" className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="text-xs text-gray-400 whitespace-nowrap">Close</span>
                       <input

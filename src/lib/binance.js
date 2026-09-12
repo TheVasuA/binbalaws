@@ -226,6 +226,49 @@ async function futuresSignedPost(endpoint, params = {}) {
   }
 }
 
+// Make signed DELETE request to Binance Futures API
+async function futuresSignedDelete(endpoint, params = {}) {
+  const apiKey = process.env.BINANCE_API_KEY?.trim();
+  const apiSecret = process.env.BINANCE_API_SECRET?.trim();
+
+  if (!apiKey || !apiSecret) {
+    throw new Error('API keys not configured');
+  }
+
+  const timestamp = await getFuturesServerTime();
+  const queryParams = { ...params, timestamp };
+  const queryString = new URLSearchParams(queryParams).toString();
+  const signature = createSignature(queryString, apiSecret);
+  const url = `${getFuturesBaseUrl()}${endpoint}?${queryString}&signature=${signature}`;
+
+  try {
+    const response = await axios.delete(url, {
+      headers: {
+        'X-MBX-APIKEY': apiKey,
+      },
+    });
+
+    const weight = response.headers['x-mbx-used-weight-1m'] || response.headers['x-mbx-used-weight'];
+    if (weight) {
+      currentApiWeight = parseInt(weight);
+      lastWeightUpdate = Date.now();
+    }
+
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      const weight = error.response.headers?.['x-mbx-used-weight-1m'] || error.response.headers?.['x-mbx-used-weight'];
+      if (weight) {
+        currentApiWeight = parseInt(weight);
+        lastWeightUpdate = Date.now();
+      }
+      const msg = error.response.data?.msg || error.response.data?.code || 'Unknown error';
+      throw new Error(`Binance Futures API: ${msg}`);
+    }
+    throw error;
+  }
+}
+
 // Make public request to Binance API
 async function publicRequest(endpoint, params = {}) {
   const queryString = new URLSearchParams(params).toString();
@@ -728,6 +771,80 @@ export async function placeFuturesMarketOrder({ symbol, side, quantity }) {
   });
 }
 
+// Simple in-memory cache of price precision per symbol (avoids refetching exchangeInfo).
+const _pricePrecisionCache = new Map();
+
+// Resolve the price precision for a single futures symbol from exchangeInfo.
+export async function getFuturesPricePrecision(symbol) {
+  const key = String(symbol || '').toUpperCase();
+  if (!key) return null;
+  if (_pricePrecisionCache.has(key)) {
+    return _pricePrecisionCache.get(key);
+  }
+
+  try {
+    const exchangeInfo = await futuresPublicRequest('/fapi/v1/exchangeInfo');
+    for (const s of exchangeInfo.symbols || []) {
+      if (typeof s.pricePrecision === 'number') {
+        _pricePrecisionCache.set(s.symbol, s.pricePrecision);
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching price precision:', error.message);
+  }
+
+  return _pricePrecisionCache.has(key) ? _pricePrecisionCache.get(key) : null;
+}
+
+// Conditional order types (SL/TP) live on the Algo Order service as of the
+// Binance 2025-12-09 migration. The classic /fapi/v1/openOrders no longer
+// returns them — they must be read from /fapi/v1/openAlgoOrders.
+const ALGO_EXIT_TYPES = new Set(['STOP_MARKET', 'STOP', 'TAKE_PROFIT_MARKET', 'TAKE_PROFIT']);
+
+// Fetch open conditional (algo) orders. Optionally filter by symbol.
+export async function getFuturesOpenAlgoOrders(symbol = undefined) {
+  const params = {};
+  if (symbol) params.symbol = String(symbol).toUpperCase();
+  const orders = await futuresAuthenticatedRequest('/fapi/v1/openAlgoOrders', params);
+  return Array.isArray(orders) ? orders : [];
+}
+
+// Cancel existing protective SL/TP algo orders for a position so new ones can
+// replace them without stacking duplicates. Returns the cancelled algoIds.
+export async function cancelFuturesExitOrders(symbol, entrySide) {
+  const normalizedEntrySide = String(entrySide || '').toUpperCase();
+  const upperSymbol = String(symbol || '').toUpperCase();
+  if (!upperSymbol || !['BUY', 'SELL'].includes(normalizedEntrySide)) {
+    throw new Error('Invalid symbol or entry side for cancelling SL/TP');
+  }
+
+  // For a LONG (entry BUY) the exit side is SELL, and vice versa.
+  const exitSide = normalizedEntrySide === 'BUY' ? 'SELL' : 'BUY';
+
+  const algoOrders = await getFuturesOpenAlgoOrders(upperSymbol);
+
+  const toCancel = algoOrders.filter(
+    (o) =>
+      ALGO_EXIT_TYPES.has(o.orderType) &&
+      String(o.side).toUpperCase() === exitSide,
+  );
+
+  const cancelled = [];
+  for (const order of toCancel) {
+    try {
+      await futuresSignedDelete('/fapi/v1/algoOrder', {
+        symbol: upperSymbol,
+        algoId: order.algoId,
+      });
+      cancelled.push(order.algoId);
+    } catch (error) {
+      console.error(`Failed to cancel algo exit order ${order.algoId} for ${upperSymbol}:`, error.message);
+    }
+  }
+
+  return cancelled;
+}
+
 function normalizeTriggerPrice(rawPrice, pricePrecision = null) {
   const parsedPrice = Number(rawPrice);
   if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
@@ -756,8 +873,15 @@ export async function placeFuturesExitOrders({
     throw new Error('Invalid symbol or entry side for SL/TP');
   }
 
-  const stopLossTrigger = normalizeTriggerPrice(stopLossPrice, pricePrecision);
-  const takeProfitTrigger = normalizeTriggerPrice(takeProfitPrice, pricePrecision);
+  // Resolve price precision if the caller didn't supply it, so Binance accepts
+  // the stopPrice (an over-precise price is rejected with "Precision is over...").
+  let resolvedPrecision = pricePrecision;
+  if (resolvedPrecision === null || resolvedPrecision === undefined) {
+    resolvedPrecision = await getFuturesPricePrecision(symbol);
+  }
+
+  const stopLossTrigger = normalizeTriggerPrice(stopLossPrice, resolvedPrecision);
+  const takeProfitTrigger = normalizeTriggerPrice(takeProfitPrice, resolvedPrecision);
 
   if (!stopLossTrigger && !takeProfitTrigger) {
     throw new Error('No valid SL/TP price provided');
@@ -769,27 +893,29 @@ export async function placeFuturesExitOrders({
     takeProfit: null,
   };
 
+  // SL/TP are placed as conditional (algo) orders since Binance's 2025-12-09
+  // migration. The classic /fapi/v1/order endpoint rejects these types (-4120).
   if (stopLossTrigger) {
-    response.stopLoss = await futuresSignedPost('/fapi/v1/order', {
+    response.stopLoss = await futuresSignedPost('/fapi/v1/algoOrder', {
       symbol: symbol.toUpperCase(),
       side: exitSide,
+      algoType: 'CONDITIONAL',
       type: 'STOP_MARKET',
-      stopPrice: stopLossTrigger,
+      triggerPrice: stopLossTrigger,
       closePosition: 'true',
       workingType: 'MARK_PRICE',
-      priceProtect: 'true',
     });
   }
 
   if (takeProfitTrigger) {
-    response.takeProfit = await futuresSignedPost('/fapi/v1/order', {
+    response.takeProfit = await futuresSignedPost('/fapi/v1/algoOrder', {
       symbol: symbol.toUpperCase(),
       side: exitSide,
+      algoType: 'CONDITIONAL',
       type: 'TAKE_PROFIT_MARKET',
-      stopPrice: takeProfitTrigger,
+      triggerPrice: takeProfitTrigger,
       closePosition: 'true',
       workingType: 'MARK_PRICE',
-      priceProtect: 'true',
     });
   }
 
@@ -826,27 +952,29 @@ export async function getFuturesAccount() {
 // Get futures positions
 export async function getFuturesPositions() {
   try {
-    const [positions, openOrders] = await Promise.all([
+    // SL/TP are conditional (algo) orders since Binance's 2025-12-09 migration,
+    // so they come from /fapi/v1/openAlgoOrders, not the classic /fapi/v1/openOrders.
+    const [positions, algoOrders] = await Promise.all([
       futuresAuthenticatedRequest('/fapi/v2/positionRisk'),
-      futuresAuthenticatedRequest('/fapi/v1/openOrders')
+      getFuturesOpenAlgoOrders(),
     ]);
-    
-    // Debug: log all open order types to diagnose SL/TP detection
-    console.log('[FuturesPositions] openOrders raw:', JSON.stringify(openOrders.map(o => ({
-      symbol: o.symbol, type: o.type, side: o.side, stopPrice: o.stopPrice, price: o.price, positionSide: o.positionSide
+
+    // Debug: log all algo order types to diagnose SL/TP detection
+    console.log('[FuturesPositions] openAlgoOrders raw:', JSON.stringify((algoOrders || []).map(o => ({
+      symbol: o.symbol, orderType: o.orderType, side: o.side, triggerPrice: o.triggerPrice, positionSide: o.positionSide
     }))));
 
-    // Group stop loss and take profit orders by symbol
+    // Group stop loss and take profit algo orders by symbol
     const stopLossOrders = {};
     const takeProfitOrders = {};
-    openOrders.forEach(order => {
+    (algoOrders || []).forEach(order => {
       // Stop Loss
-      if (order.type === 'STOP_MARKET' || order.type === 'STOP') {
+      if (order.orderType === 'STOP_MARKET' || order.orderType === 'STOP') {
         if (!stopLossOrders[order.symbol]) stopLossOrders[order.symbol] = [];
         stopLossOrders[order.symbol].push(order);
       }
       // Take Profit
-      if (order.type === 'TAKE_PROFIT_MARKET' || order.type === 'TAKE_PROFIT') {
+      if (order.orderType === 'TAKE_PROFIT_MARKET' || order.orderType === 'TAKE_PROFIT') {
         if (!takeProfitOrders[order.symbol]) takeProfitOrders[order.symbol] = [];
         takeProfitOrders[order.symbol].push(order);
       }
@@ -869,7 +997,7 @@ export async function getFuturesPositions() {
           return false;
         });
 
-        const stopPrice = stopLoss ? parseFloat(stopLoss.stopPrice) : null;
+        const stopPrice = stopLoss ? parseFloat(stopLoss.triggerPrice) : null;
         let stopLossValue = null;
         if (stopPrice) {
           // Calculate loss if stop loss triggers
@@ -889,7 +1017,7 @@ export async function getFuturesPositions() {
           return false;
         });
 
-        const tpPrice = takeProfit ? parseFloat(takeProfit.stopPrice || takeProfit.price) : null;
+        const tpPrice = takeProfit ? parseFloat(takeProfit.triggerPrice) : null;
         let takeProfitValue = null;
         if (tpPrice) {
           // Calculate profit if take profit triggers
