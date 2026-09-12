@@ -15,6 +15,30 @@ export const dynamic = 'force-dynamic';
 
 const POLL_MS = 1000; // push prices once per second
 
+// Shared, per-instance mark-price cache so many concurrent SSE viewers trigger
+// only ONE Binance fetch per ~1s window instead of one fetch per connection.
+let _priceCache = null;
+let _priceCacheAt = 0;
+let _priceInflight = null;
+const PRICE_TTL_MS = 900;
+
+async function getMarkPricesShared() {
+  const now = Date.now();
+  if (_priceCache && now - _priceCacheAt < PRICE_TTL_MS) return _priceCache;
+  if (_priceInflight) return _priceInflight;
+  _priceInflight = (async () => {
+    try {
+      const map = await getFuturesMarkPrices();
+      _priceCache = map;
+      _priceCacheAt = Date.now();
+      return map;
+    } finally {
+      _priceInflight = null;
+    }
+  })();
+  return _priceInflight;
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const symbolsParam = (searchParams.get('symbols') || '').trim();
@@ -40,7 +64,7 @@ export async function GET(request) {
       const tick = async () => {
         if (closed) return;
         try {
-          const priceMap = await getFuturesMarkPrices();
+          const priceMap = await getMarkPricesShared();
           const out = {};
           for (const [symbol, info] of Object.entries(priceMap)) {
             if (wanted && !wanted.has(symbol)) continue;

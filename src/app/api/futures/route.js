@@ -38,6 +38,68 @@ async function getDailyLossLimitPercent() {
   }
 }
 
+// ── Shared Redis cache so many viewers share ONE set of Binance calls ───────
+// Every browser hitting this API reads from Redis instead of calling Binance
+// directly. Only the first request within each TTL window actually hits
+// Binance; everyone else (10+ members) is served the cached snapshot. On a
+// Binance error we fall back to the last good value so viewers never see a
+// rate-limit error.
+//
+// In-process de-duplication: if several requests arrive on the same server at
+// once and the cache is cold, only one Binance fetch runs; the rest await it.
+const inflight = new Map();
+
+async function cachedFetch(key, ttlSeconds, fetcher) {
+  const cacheKey = `cache:${key}`;
+  const staleKey = `stale:${key}`;
+
+  // 1. Fresh cache hit.
+  try {
+    const hit = await redis.get(cacheKey);
+    if (hit !== null && hit !== undefined) return hit;
+  } catch { /* redis down → fall through to direct fetch */ }
+
+  // 2. Coalesce concurrent cold-cache requests on this instance.
+  if (inflight.has(key)) return inflight.get(key);
+
+  const p = (async () => {
+    try {
+      const fresh = await fetcher();
+      // Write fresh (short TTL) + stale (long TTL) copies.
+      try {
+        await redis.set(cacheKey, fresh, { ex: ttlSeconds });
+        await redis.set(staleKey, fresh, { ex: 24 * 60 * 60 });
+      } catch { /* ignore cache write errors */ }
+      return fresh;
+    } catch (err) {
+      // 3. Binance failed (e.g. rate limit) → serve last known good value.
+      try {
+        const stale = await redis.get(staleKey);
+        if (stale !== null && stale !== undefined) return stale;
+      } catch { /* ignore */ }
+      throw err;
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+
+  inflight.set(key, p);
+  return p;
+}
+
+// Clear the fast caches after a trade so the UI reflects changes immediately
+// (keeps the long-lived "stale" fallback copies intact).
+async function invalidateFuturesCaches() {
+  try {
+    await Promise.all([
+      redis.del('cache:snapshot'),
+      redis.del('cache:account'),
+      redis.del('cache:orders:all'),
+      redis.del('cache:dailyPnl'),
+    ]);
+  } catch { /* ignore */ }
+}
+
 // SL/TP values come exclusively from the Binance Futures exchange (open orders).
 // The local DB is no longer used as a source for displayed risk values — it is
 // kept only as an audit trail of requested risk when placing orders.
@@ -70,30 +132,33 @@ export async function GET(request) {
     }
 
     let data;
-    
+
     if (type === 'debug_orders') {
       data = await getFuturesOpenOrders();
     } else if (type === 'symbols') {
-      data = await getFuturesSymbols();
+      // Symbols rarely change — cache 1 hour.
+      data = await cachedFetch('symbols', 3600, () => getFuturesSymbols());
     } else if (type === 'shortlist3d') {
       const limit = parseInt(searchParams.get('limit') || '40', 10);
-      data = await getFuturesPositive3dShortlist(limit);
+      data = await cachedFetch(`shortlist3d:${limit}`, 300, () => getFuturesPositive3dShortlist(limit));
     } else if (type === 'rsi1hscan') {
       const scanLimit = parseInt(searchParams.get('scanLimit') || '280', 10);
-      data = await getFuturesRsi1hScan(scanLimit);
+      data = await cachedFetch(`rsi1hscan:${scanLimit}`, 180, () => getFuturesRsi1hScan(scanLimit));
     } else if (type === 'account') {
-      data = await getFuturesAccount();
+      data = await cachedFetch('account', 3, () => getFuturesAccount());
     } else if (type === 'dailyPnl') {
-      data = await getTodayRealizedPnl();
+      data = await cachedFetch('dailyPnl', 30, () => getTodayRealizedPnl());
     } else if (type === 'orders') {
       const symbol = searchParams.get('symbol');
-      data = await getFuturesOpenOrders(symbol);
+      data = await cachedFetch(`orders:${symbol || 'all'}`, 3, () => getFuturesOpenOrders(symbol));
     } else if (type === 'storedOrders') {
       const symbol = searchParams.get('symbol');
       const limit = searchParams.get('limit') || '100';
       data = await listStoredOrders({ symbol, limit });
     } else {
-      data = await loadFuturesSnapshot();
+      // Full positions snapshot — the heaviest call. Cache 3s so 10 viewers
+      // share one Binance fetch instead of each hitting the exchange.
+      data = await cachedFetch('snapshot', 3, () => loadFuturesSnapshot());
     }
 
     const apiWeight = getApiWeight();
@@ -235,6 +300,8 @@ export async function POST(request) {
         takeProfitPrice: parsedTakeProfitPrice,
       });
 
+      await invalidateFuturesCaches();
+
       return NextResponse.json({
         success: true,
         data: {
@@ -294,6 +361,8 @@ export async function POST(request) {
         takeProfitPrice: parsedTP,
       });
 
+      await invalidateFuturesCaches();
+
       return NextResponse.json({
         success: true,
         data: { saved, riskOrders, cancelledOrderIds },
@@ -308,7 +377,9 @@ export async function POST(request) {
       }
 
       const result = await closePosition(symbol, side, quantity);
-      
+
+      await invalidateFuturesCaches();
+
       return NextResponse.json({
         success: true,
         data: result,
