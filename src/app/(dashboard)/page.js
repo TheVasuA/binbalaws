@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { formatCurrency } from '@/lib/utils';
 import { useBackendFuturesStream } from '@/lib/backendWS';
 import { usePortfolioSettings } from '@/lib/settings';
+import { useNotify } from '@/lib/notify';
 import { calculateFuturesRiskMetrics } from '@/lib/risk';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import FuturesPositions from '@/components/FuturesPositions';
@@ -44,6 +45,94 @@ export default function FuturesPage() {
   const todayLoss = Math.max(0, -todayRealized); // positive number = loss today
   const breakerTripped = dailyLossLimitUsd > 0 && todayLoss >= dailyLossLimitUsd;
   const breakerNear = !breakerTripped && dailyLossLimitUsd > 0 && todayLoss >= dailyLossLimitUsd * 0.7;
+
+  // Alarm level: fires the beep when today's loss reaches the configured % of
+  // margin balance (an early warning ahead of the hard block).
+  const alarmLossPercent = Number(settings?.alarmLossPercent) || 8;
+  const alarmLossUsd = marginBalance * (alarmLossPercent / 100);
+  const lossPercentOfMargin = marginBalance > 0 ? (todayLoss / marginBalance) * 100 : 0;
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+  const { notify } = useNotify();
+  const notifiedRef = useRef({
+    alarm: false,
+    breaker: false,
+    posLimit: false,
+    wsDown: false,
+  });
+
+  // 8% daily-loss alarm (beep + danger toast). Fires once per crossing.
+  useEffect(() => {
+    if (marginBalance <= 0) return;
+    if (todayLoss >= alarmLossUsd && !notifiedRef.current.alarm) {
+      notifiedRef.current.alarm = true;
+      notify({
+        level: 'danger',
+        beep: true,
+        sticky: true,
+        title: `⚠ Daily loss alarm — ${lossPercentOfMargin.toFixed(1)}% of margin`,
+        message: `Today's loss is ${formatCurrency(todayLoss)}. Hard block at ${dailyLossLimitPercent}% (${formatCurrency(dailyLossLimitUsd)}).`,
+      });
+    }
+    // Reset the alarm latch if loss recovers back under ~7%.
+    if (todayLoss < alarmLossUsd * 0.85 && notifiedRef.current.alarm) {
+      notifiedRef.current.alarm = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayLoss, alarmLossUsd, marginBalance]);
+
+  // Circuit breaker tripped (10%): louder danger toast, once.
+  useEffect(() => {
+    if (breakerTripped && !notifiedRef.current.breaker) {
+      notifiedRef.current.breaker = true;
+      notify({
+        level: 'danger',
+        beep: true,
+        sticky: true,
+        title: '🛑 Circuit breaker tripped — orders blocked',
+        message: `Daily loss ${formatCurrency(todayLoss)} reached the ${dailyLossLimitPercent}% limit. New orders under 20x are blocked until tomorrow.`,
+      });
+    }
+    if (!breakerTripped && notifiedRef.current.breaker) {
+      notifiedRef.current.breaker = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breakerTripped]);
+
+  // Too many open positions.
+  useEffect(() => {
+    if (positionsOverLimit && !notifiedRef.current.posLimit) {
+      notifiedRef.current.posLimit = true;
+      notify({
+        level: 'warning',
+        beep: true,
+        title: 'Too many open positions',
+        message: `${openPositionCount} open — your max is ${maxOpenPositions}. Consider closing some.`,
+      });
+    }
+    if (!positionsOverLimit && notifiedRef.current.posLimit) {
+      notifiedRef.current.posLimit = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positionsOverLimit, openPositionCount, maxOpenPositions]);
+
+  // Live price feed connection lost / restored.
+  useEffect(() => {
+    if (!loaded) return;
+    if (!wsConnected && !notifiedRef.current.wsDown) {
+      notifiedRef.current.wsDown = true;
+      notify({
+        level: 'warning',
+        title: 'Live price feed disconnected',
+        message: 'Prices may be delayed. Reconnecting…',
+      });
+    }
+    if (wsConnected && notifiedRef.current.wsDown) {
+      notifiedRef.current.wsDown = false;
+      notify({ level: 'success', title: 'Live feed reconnected' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsConnected, loaded]);
 
   const futuresRiskMetrics = useMemo(
     () => calculateFuturesRiskMetrics(futuresPositions, futuresAccount),

@@ -19,6 +19,7 @@ const DEFAULTS = {
   maxOpenPositions: 3,       // max concurrent positions before a danger badge shows
   dailyLossLimitPercent: 10, // circuit breaker: block new orders once today's
                              // realized loss reaches this % of margin balance
+  alarmLossPercent: 8,       // beep + alert when daily loss reaches this % of margin
 };
 
 export async function GET() {

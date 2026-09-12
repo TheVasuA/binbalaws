@@ -66,6 +66,14 @@ const FIELDS = [
     help: "Once today's realized loss reaches this % of margin balance, new orders are blocked.",
   },
   {
+    key: 'alarmLossPercent',
+    label: 'Daily Loss Alarm',
+    unit: '% of margin',
+    step: '0.5',
+    min: 0,
+    help: 'Beep + alert (early warning) when daily loss reaches this % — set below the circuit breaker.',
+  },
+  {
     key: 'inrRate',
     label: 'USD → INR Rate',
     unit: '₹/$',

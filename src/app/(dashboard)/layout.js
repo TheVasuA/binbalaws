@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
+import { NotificationProvider } from '@/lib/notify';
 
 export default function DashboardLayout({ children }) {
   const [progressData, setProgressData] = useState(null);
@@ -77,12 +78,14 @@ export default function DashboardLayout({ children }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      <Navbar progressData={progressData} />
-      
-      <main>
-        {children}
-      </main>
-    </div>
+    <NotificationProvider>
+      <div className="min-h-screen bg-gray-900">
+        <Navbar progressData={progressData} />
+
+        <main>
+          {children}
+        </main>
+      </div>
+    </NotificationProvider>
   );
 }

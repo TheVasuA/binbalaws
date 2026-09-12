@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   riskPerTradePercent: 2,    // % of wallet risked per trade
   maxOpenPositions: 3,       // max concurrent positions before a danger badge shows
   dailyLossLimitPercent: 10, // circuit breaker: block new orders at this daily loss %
+  alarmLossPercent: 8,       // beep + alert when daily loss reaches this % of margin
 };
 
 /**
