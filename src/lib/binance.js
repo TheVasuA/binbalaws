@@ -1162,6 +1162,43 @@ export async function closePosition(symbol, side, quantity) {
   }
 }
 
+// Close ALL open futures positions with market orders.
+// By default, positions with leverage >= 20x are treated as "huge" orders and
+// are NOT closed (they bypass the discipline controls), matching the circuit
+// breaker's 20x exception.
+// Pass { includeHuge: true } to close EVERYTHING including 20x+ ("zero order").
+export async function closeAllPositions({ includeHuge = false } = {}) {
+  const HUGE_ORDER_LEVERAGE = 20;
+  const positions = await getFuturesPositions();
+
+  const results = [];
+  for (const p of positions) {
+    const leverage = Number(p.leverage) || 0;
+    const qty = Math.abs(Number(p.positionAmt) || 0);
+
+    if (!includeHuge && leverage >= HUGE_ORDER_LEVERAGE) {
+      results.push({ symbol: p.symbol, skipped: true, reason: `leverage ${leverage}x (>= ${HUGE_ORDER_LEVERAGE}x exception)` });
+      continue;
+    }
+    if (qty <= 0) {
+      results.push({ symbol: p.symbol, skipped: true, reason: 'no quantity' });
+      continue;
+    }
+
+    try {
+      await closePosition(p.symbol, p.side, qty);
+      results.push({ symbol: p.symbol, closed: true, quantity: qty, side: p.side });
+    } catch (err) {
+      results.push({ symbol: p.symbol, closed: false, error: err.message });
+    }
+  }
+
+  const closed = results.filter((r) => r.closed).length;
+  const skipped = results.filter((r) => r.skipped).length;
+  const failed = results.filter((r) => r.closed === false).length;
+  return { closed, skipped, failed, results };
+}
+
 // Get futures trade history (realized PnL)
 export async function getFuturesTradeHistory(limit = 10) {
   try {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Available themes. `swatch` is used to render the preview dot/gradient.
 export const THEMES = [
+  // Dark themes
   { id: 'midnight', name: 'Midnight', swatch: '#111827' },
   { id: 'slate', name: 'Slate', swatch: '#0f172a' },
   { id: 'ocean', name: 'Ocean', swatch: 'linear-gradient(135deg,#0b2540,#04101d)' },
@@ -12,6 +13,11 @@ export const THEMES = [
   { id: 'crimson', name: 'Crimson', swatch: 'linear-gradient(135deg,#3a1220,#17070d)' },
   { id: 'carbon', name: 'Carbon', swatch: '#000000' },
   { id: 'sand', name: 'Sand', swatch: 'linear-gradient(135deg,#2b2417,#12100a)' },
+  { id: 'teal', name: 'Teal', swatch: 'linear-gradient(135deg,#0c2f2f,#041414)' },
+  { id: 'rose', name: 'Rose', swatch: 'linear-gradient(135deg,#3a1530,#180a14)' },
+  // Light themes
+  { id: 'light', name: 'Light', swatch: '#f3f4f6' },
+  { id: 'paper', name: 'Paper', swatch: '#faf7f0' },
 ];
 
 export const DEFAULT_THEME = 'midnight';

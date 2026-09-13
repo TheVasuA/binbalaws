@@ -11,6 +11,7 @@ import {
   placeFuturesExitOrders,
   cancelFuturesExitOrders,
   closePosition,
+  closeAllPositions,
   getTodayRealizedPnl,
   getApiWeight
 } from '@/lib/binance';
@@ -194,6 +195,7 @@ export async function POST(request) {
       leverage,
       stopLossPrice,
       takeProfitPrice,
+      includeHuge,
     } = body;
 
     if (action === 'openPosition') {
@@ -384,6 +386,14 @@ export async function POST(request) {
         success: true,
         data: result,
       });
+    }
+
+    if (action === 'closeAll') {
+      // Default: close every position except leverage >= 20x (huge-order
+      // exception). includeHuge:true = "Zero Order Close" → close EVERYTHING.
+      const result = await closeAllPositions({ includeHuge: includeHuge === true });
+      await invalidateFuturesCaches();
+      return NextResponse.json({ success: true, data: result });
     }
 
     return NextResponse.json({

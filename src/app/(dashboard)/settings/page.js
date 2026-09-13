@@ -6,6 +6,7 @@ import { useBackendFuturesStream } from '@/lib/backendWS';
 import { useTheme } from '@/lib/theme';
 import { formatCurrency } from '@/lib/utils';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import ForceCloseAllButton from '@/components/ForceCloseAllButton';
 
 // Field definitions drive the form so it stays in sync with the settings model.
 const FIELDS = [
@@ -90,6 +91,7 @@ export default function SettingsPage() {
 
   const [form, setForm] = useState(settings);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [activeSection, setActiveSection] = useState('risk-actions');
 
   // Sync local form when settings load/change from the server.
   useEffect(() => {
@@ -128,8 +130,15 @@ export default function SettingsPage() {
   ).length;
   const riskPerTradeUsd = wallet * ((Number(form.riskPerTradePercent) || 0) / 100);
 
+  const navLinks = [
+    { id: 'risk-actions', label: '⛔ Risk Actions' },
+    { id: 'account-status', label: '📡 Account' },
+    { id: 'theme', label: '🎨 Theme' },
+    { id: 'preferences', label: '🛠 Preferences' },
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl md:text-3xl font-bold text-white">⚙️ Settings</h1>
@@ -138,7 +147,71 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Left sidebar nav — switches which section is shown */}
+        <aside className="md:w-52 md:flex-shrink-0">
+          <nav className="md:sticky md:top-24 flex md:flex-col gap-1 overflow-x-auto md:overflow-visible bg-gray-800/40 rounded-xl border border-gray-700 p-2">
+            {navLinks.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => setActiveSection(l.id)}
+                className={`whitespace-nowrap text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                  activeSection === l.id
+                    ? 'bg-blue-600 text-white font-medium'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-700/60'
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        {/* Content column — only the active section renders */}
+        <div className="flex-1 min-w-0">
+
+      {/* Risk Actions */}
+      {activeSection === 'risk-actions' && (
+      <section className="mb-6 bg-gray-800/50 rounded-xl border border-red-700/40 p-4 md:p-6">
+        <h2 className="text-lg font-semibold text-white mb-1">Risk Actions</h2>
+        <p className="text-gray-500 text-xs mb-4">
+          Positions at <span className="text-yellow-300 font-semibold">20x or higher</span> leverage
+          are never auto-closed (huge-order exception).
+        </p>
+
+        {/* Auto-close on circuit breaker toggle */}
+        <label className="flex items-start gap-3 cursor-pointer mb-4">
+          <input
+            type="checkbox"
+            checked={Number(form.autoCloseOnBreaker) === 1}
+            onChange={(e) => handleChange('autoCloseOnBreaker', e.target.checked ? 1 : 0)}
+            className="mt-0.5 h-4 w-4 accent-red-500"
+          />
+          <span>
+            <span className="text-sm text-gray-200 font-medium">
+              Auto-close all positions when daily loss limit is hit
+            </span>
+            <span className="block text-gray-500 text-xs mt-0.5">
+              When today&apos;s loss reaches {form.dailyLossLimitPercent}% of margin, close every
+              position under 20x automatically. Save settings to apply.
+            </span>
+          </span>
+        </label>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <ForceCloseAllButton />
+          <ForceCloseAllButton zero />
+          <span className="text-gray-500 text-xs">
+            {openPositions} open position{openPositions === 1 ? '' : 's'}. Force Close skips 20x+;
+            Zero Order Close exits everything.
+          </span>
+        </div>
+      </section>
+      )}
+
       {/* Account status (read-only) */}
+      {activeSection === 'account-status' && (
       <section className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-3">
           <p className="text-gray-500 text-xs mb-1">API Connection</p>
@@ -168,7 +241,10 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      )}
+
       {/* Theme switcher */}
+      {activeSection === 'theme' && (
       <section className="mb-6 bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6">
         <h2 className="text-lg font-semibold text-white mb-1">Theme</h2>
         <p className="text-gray-500 text-xs mb-4">
@@ -202,7 +278,10 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      )}
+
       {/* Settings form */}
+      {activeSection === 'preferences' && (
       <section className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Portfolio Preferences</h2>
 
@@ -261,6 +340,10 @@ export default function SettingsPage() {
           {savedFlash && <span className="text-green-400 text-sm">✓ Saved</span>}
         </div>
       </section>
+      )}
+
+        </div>{/* end content column */}
+      </div>{/* end flex row */}
 
       <footer className="text-center text-gray-500 text-xs md:text-sm py-4 mt-6">
         Settings are stored securely and apply across the dashboard.

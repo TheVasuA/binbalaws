@@ -143,6 +143,72 @@ html[data-theme="sand"] {
   --border: #453b24;
 }
 
+/* 9. Teal (deep cyan) */
+html[data-theme="teal"] {
+  --app-bg: radial-gradient(1200px 800px at 20% -10%, #0c2f2f 0%, #082222 45%, #041414 100%);
+  --surface: #0a2626;
+  --surface-2: #103434;
+  --border: #1c4a4a;
+}
+
+/* 10. Rose (deep pink) */
+html[data-theme="rose"] {
+  --app-bg: radial-gradient(1200px 800px at 80% -10%, #3a1530 0%, #260e20 45%, #180a14 100%);
+  --surface: #24101e;
+  --surface-2: #351a2c;
+  --border: #522942;
+}
+
+/* ── Light themes ──────────────────────────────────────────────────────────
+   The app uses light text (text-white / text-gray-300) which is invisible on a
+   light surface, so light themes also darken the text utilities. */
+
+/* 11. Light (cool gray) */
+html[data-theme="light"] {
+  --app-bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #f3f4f6;
+  --border: #d1d5db;
+}
+
+/* 12. Paper (warm off-white) */
+html[data-theme="paper"] {
+  --app-bg: #f2ede3;
+  --surface: #fbf8f2;
+  --surface-2: #f3ede1;
+  --border: #ddd3c2;
+}
+
+/* Text/readability fixes applied only on light themes. */
+html[data-theme="light"] .text-white,
+html[data-theme="paper"] .text-white,
+html[data-theme="light"] .text-gray-200,
+html[data-theme="paper"] .text-gray-200,
+html[data-theme="light"] .text-gray-300,
+html[data-theme="paper"] .text-gray-300 {
+  color: #111827 !important;
+}
+html[data-theme="light"] .text-gray-400,
+html[data-theme="paper"] .text-gray-400,
+html[data-theme="light"] .text-gray-500,
+html[data-theme="paper"] .text-gray-500,
+html[data-theme="light"] .text-gray-600,
+html[data-theme="paper"] .text-gray-600 {
+  color: #4b5563 !important;
+}
+/* Gradient clip-text headings (balance, goal) → solid dark so they stay visible. */
+html[data-theme="light"] .bg-clip-text.text-transparent,
+html[data-theme="paper"] .bg-clip-text.text-transparent {
+  -webkit-text-fill-color: #111827 !important;
+  color: #111827 !important;
+  background: none !important;
+}
+/* Inputs on light themes. */
+html[data-theme="light"] .bg-gray-900,
+html[data-theme="paper"] .bg-gray-900 {
+  color: #111827 !important;
+}
+
 /* Shimmer animation for progress bar */
 @keyframes shimmer {
   0% {

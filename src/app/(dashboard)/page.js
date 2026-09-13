@@ -59,7 +59,10 @@ export default function FuturesPage() {
     breaker: false,
     posLimit: false,
     wsDown: false,
+    autoClosed: false,
   });
+
+  const autoCloseOnBreaker = Number(settings?.autoCloseOnBreaker) === 1;
 
   // 8% daily-loss alarm (beep + danger toast). Fires once per crossing.
   useEffect(() => {
@@ -98,6 +101,39 @@ export default function FuturesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [breakerTripped]);
+
+  // Auto-close all positions (except >=20x) when the breaker trips, if enabled.
+  useEffect(() => {
+    if (!autoCloseOnBreaker) return;
+    if (breakerTripped && !notifiedRef.current.autoClosed) {
+      notifiedRef.current.autoClosed = true;
+      (async () => {
+        try {
+          const res = await fetch('/api/futures', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'closeAll' }),
+          });
+          const json = await res.json();
+          const { closed = 0, skipped = 0, failed = 0 } = json?.data || {};
+          notify({
+            level: failed > 0 ? 'warning' : 'danger',
+            beep: true,
+            sticky: true,
+            title: '🛑 Auto-close triggered (daily loss limit)',
+            message: `Closed ${closed} · skipped ${skipped} (20x+)${failed ? ` · failed ${failed}` : ''}`,
+          });
+          refetchPositions();
+        } catch (err) {
+          notify({ level: 'danger', beep: true, title: 'Auto-close failed', message: err.message });
+        }
+      })();
+    }
+    if (!breakerTripped && notifiedRef.current.autoClosed) {
+      notifiedRef.current.autoClosed = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breakerTripped, autoCloseOnBreaker]);
 
   // Too many open positions.
   useEffect(() => {

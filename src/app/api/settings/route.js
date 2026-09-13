@@ -20,6 +20,8 @@ const DEFAULTS = {
   dailyLossLimitPercent: 10, // circuit breaker: block new orders once today's
                              // realized loss reaches this % of margin balance
   alarmLossPercent: 8,       // beep + alert when daily loss reaches this % of margin
+  autoCloseOnBreaker: 0,     // 1 = auto-close all positions (except >=20x) when
+                             // the daily loss limit is hit; 0 = only block
 };
 
 export async function GET() {

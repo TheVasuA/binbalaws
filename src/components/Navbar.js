@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import ForceCloseAllButton from '@/components/ForceCloseAllButton';
 
 export default function Navbar({ onRefresh, loading, progressData }) {
       // Mobile trade summary (shown below navbar)
@@ -215,6 +216,12 @@ export default function Navbar({ onRefresh, loading, progressData }) {
               </Link>
             )
           ))}
+
+          {/* Close-all actions */}
+          <div className="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-2">
+            <ForceCloseAllButton compact onDone={() => setMenuOpen(false)} />
+            <ForceCloseAllButton zero compact onDone={() => setMenuOpen(false)} />
+          </div>
         </nav>
       </aside>
 
