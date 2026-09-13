@@ -107,6 +107,15 @@ export default function CompoundPage() {
     }
   };
 
+  // Step back one trade — removes the last completed milestone (use after a
+  // loss or a mistaken "mark complete"). Returns to the previous goal step.
+  const undoLastTrade = () => {
+    if (completedTrades.length === 0) return;
+    const newTrades = completedTrades.slice(0, -1);
+    setCompletedTrades(newTrades);
+    saveToDatabase(startingBalance, newTrades);
+  };
+
   const resetProgress = async () => {
     if (confirm('Are you sure you want to reset all progress? This will set starting balance to your current futures balance.')) {
       setCompletedTrades([]);
@@ -136,12 +145,23 @@ export default function CompoundPage() {
           </h1>
           <p className="text-gray-400 mt-1">2% profit per trade to $100,000</p>
         </div>
-        <button
-          onClick={resetProgress}
-          className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/30 transition-colors"
-        >
-          Reset
-        </button>
+        <div className="flex items-center gap-2">
+          {completedCount > 0 && (
+            <button
+              onClick={undoLastTrade}
+              title="Go back one trade (after a loss)"
+              className="px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors"
+            >
+              ↩ Undo
+            </button>
+          )}
+          <button
+            onClick={resetProgress}
+            className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/30 transition-colors"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -216,12 +236,23 @@ export default function CompoundPage() {
               <p className="text-blue-400 font-medium">{formatCurrency(currentMilestone.endBalance)}</p>
             </div>
           </div>
-          <button
-            onClick={() => markTradeComplete(currentMilestone.trade)}
-            className="w-full py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition-colors"
-          >
-            ✓ Mark Trade #{currentMilestone.trade} Complete
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => markTradeComplete(currentMilestone.trade)}
+              className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition-colors"
+            >
+              ✓ Mark Trade #{currentMilestone.trade} Complete
+            </button>
+            {completedCount > 0 && (
+              <button
+                onClick={undoLastTrade}
+                title={`Undo trade #${completedCount} (go back after a loss)`}
+                className="px-4 py-3 bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/30 font-semibold rounded-lg transition-colors"
+              >
+                ↩ Undo #{completedCount}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -231,7 +262,7 @@ export default function CompoundPage() {
           <div className="text-5xl mb-4">🎉</div>
           <h2 className="text-2xl font-bold text-green-400 mb-2">Goal Achieved!</h2>
           <p className="text-gray-300">
-            You've reached {formatCurrency(targetAmount)} through compound trading!
+            You&apos;ve reached {formatCurrency(targetAmount)} through compound trading!
           </p>
         </div>
       )}

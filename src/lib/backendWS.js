@@ -90,12 +90,14 @@ export function useBackendFuturesStream() {
   // without re-fetching positions/SL-TP (which stay on the slow 5-min cycle).
   const fetchBalanceAndOrders = useCallback(async () => {
     try {
-      const [accRes, ordRes] = await Promise.all([
+      const [accRes, ordRes, pnlRes] = await Promise.all([
         fetch('/api/futures?type=account'),
         fetch('/api/futures?type=orders'),
+        fetch('/api/futures?type=dailyPnl'),
       ]);
       const accJson = await accRes.json();
       const ordJson = await ordRes.json();
+      const pnlJson = await pnlRes.json();
 
       if (accJson.success && accJson.data) {
         // Merge only the balance fields; keep everything else the snapshot set.
@@ -103,6 +105,10 @@ export function useBackendFuturesStream() {
       }
       if (ordJson.success && Array.isArray(ordJson.data)) {
         setOpenOrders(ordJson.data);
+      }
+      // Today's realized PnL — drives the target / loss-limit bars.
+      if (pnlJson.success && pnlJson.data) {
+        setDailyPnl(pnlJson.data);
       }
       setError(null);
     } catch (err) {

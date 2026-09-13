@@ -37,20 +37,34 @@ export default function FuturesPage() {
   const maxOpenPositions = Number(settings?.maxOpenPositions) || 3;
   const positionsOverLimit = openPositionCount > maxOpenPositions;
 
-  // Daily loss circuit breaker status.
+  // Daily loss circuit breaker status — limit is a % of WALLET balance.
   const dailyLossLimitPercent = Number(settings?.dailyLossLimitPercent) || 10;
-  const marginBalance = Number(mergedAccount?.totalMarginBalance) || 0;
-  const dailyLossLimitUsd = marginBalance * (dailyLossLimitPercent / 100);
+  const walletBalance = Number(mergedAccount?.totalWalletBalance) || 0;
+  const dailyLossLimitUsd = walletBalance * (dailyLossLimitPercent / 100);
   const todayRealized = Number(dailyPnl?.realizedPnl) || 0;
-  const todayLoss = Math.max(0, -todayRealized); // positive number = loss today
-  const breakerTripped = dailyLossLimitUsd > 0 && todayLoss >= dailyLossLimitUsd;
-  const breakerNear = !breakerTripped && dailyLossLimitUsd > 0 && todayLoss >= dailyLossLimitUsd * 0.7;
+  // Live unrealized moves every price tick; combined = live "today" PnL.
+  const liveUnrealized = Number(mergedAccount?.totalUnrealizedProfit) || 0;
+  const todayNet = todayRealized + liveUnrealized;
+
+  // Loss bar reflects the LIVE net drawdown (realized + unrealized) so it moves.
+  const todayLoss = Math.max(0, -todayNet);
+  // Breaker fires on REALIZED loss only (server enforces on realized), so a
+  // floating drawdown that can still recover won't hard-block orders.
+  const realizedLoss = Math.max(0, -todayRealized);
+  const breakerTripped = dailyLossLimitUsd > 0 && realizedLoss >= dailyLossLimitUsd;
+  const breakerNear = !breakerTripped && dailyLossLimitUsd > 0 && realizedLoss >= dailyLossLimitUsd * 0.7;
 
   // Alarm level: fires the beep when today's loss reaches the configured % of
-  // margin balance (an early warning ahead of the hard block).
+  // wallet balance (an early warning ahead of the hard block).
   const alarmLossPercent = Number(settings?.alarmLossPercent) || 8;
-  const alarmLossUsd = marginBalance * (alarmLossPercent / 100);
-  const lossPercentOfMargin = marginBalance > 0 ? (todayLoss / marginBalance) * 100 : 0;
+  const alarmLossUsd = walletBalance * (alarmLossPercent / 100);
+  const lossPercentOfMargin = walletBalance > 0 ? (realizedLoss / walletBalance) * 100 : 0;
+
+  // Today's target from the compound rule: aim for compoundPercent% of wallet.
+  // Progress uses the live net PnL (realized + unrealized) so it moves.
+  const compoundPercent = Number(settings?.compoundPercent) || 2;
+  const todayTargetUsd = walletBalance * (compoundPercent / 100);
+  const todayProfit = Math.max(0, todayNet); // for the target bar (>=0)
 
   // ── Notifications ──────────────────────────────────────────────────────────
   const { notify } = useNotify();
@@ -66,23 +80,23 @@ export default function FuturesPage() {
 
   // 8% daily-loss alarm (beep + danger toast). Fires once per crossing.
   useEffect(() => {
-    if (marginBalance <= 0) return;
-    if (todayLoss >= alarmLossUsd && !notifiedRef.current.alarm) {
+    if (walletBalance <= 0) return;
+    if (realizedLoss >= alarmLossUsd && !notifiedRef.current.alarm) {
       notifiedRef.current.alarm = true;
       notify({
         level: 'danger',
         beep: true,
         sticky: true,
-        title: `⚠ Daily loss alarm — ${lossPercentOfMargin.toFixed(1)}% of margin`,
-        message: `Today's loss is ${formatCurrency(todayLoss)}. Hard block at ${dailyLossLimitPercent}% (${formatCurrency(dailyLossLimitUsd)}).`,
+        title: `⚠ Daily loss alarm — ${lossPercentOfMargin.toFixed(1)}% of wallet`,
+        message: `Today's realized loss is ${formatCurrency(realizedLoss)}. Hard block at ${dailyLossLimitPercent}% (${formatCurrency(dailyLossLimitUsd)}).`,
       });
     }
-    // Reset the alarm latch if loss recovers back under ~7%.
-    if (todayLoss < alarmLossUsd * 0.85 && notifiedRef.current.alarm) {
+    // Reset the alarm latch if loss recovers back under ~85% of the alarm level.
+    if (realizedLoss < alarmLossUsd * 0.85 && notifiedRef.current.alarm) {
       notifiedRef.current.alarm = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todayLoss, alarmLossUsd, marginBalance]);
+  }, [realizedLoss, alarmLossUsd, walletBalance]);
 
   // Circuit breaker tripped (10%): louder danger toast, once.
   useEffect(() => {
@@ -93,7 +107,7 @@ export default function FuturesPage() {
         beep: true,
         sticky: true,
         title: '🛑 Circuit breaker tripped — orders blocked',
-        message: `Daily loss ${formatCurrency(todayLoss)} reached the ${dailyLossLimitPercent}% limit. New orders under 20x are blocked until tomorrow.`,
+        message: `Daily realized loss ${formatCurrency(realizedLoss)} reached the ${dailyLossLimitPercent}% limit. New orders under 20x are blocked until tomorrow.`,
       });
     }
     if (!breakerTripped && notifiedRef.current.breaker) {
@@ -192,7 +206,7 @@ export default function FuturesPage() {
   return (
     <div className="max-w-full xl:max-w-screen-2xl mx-auto px-2 sm:px-6 lg:px-12 py-4 md:py-8 flex flex-col">
       {/* ═══ Portfolio Header ═══════════════════════════════════════════════════ */}
-      <div className="sticky top-16 z-30 flex flex-col md:flex-row gap-4 mb-6 bg-gray-900/95 backdrop-blur-md rounded-2xl border border-gray-700/50">
+      <div className="sticky top-16 z-30 flex flex-row items-stretch gap-2 md:gap-4 mb-6 bg-gray-900/95 backdrop-blur-md rounded-2xl border border-gray-700/50">
         {/* Live Balance Card */}
         <div className="flex-1 min-w-0 relative overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 shadow-2xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
@@ -224,39 +238,79 @@ export default function FuturesPage() {
                   {formatCurrency(mergedAccount?.totalMarginBalance || 0, 2)}
                 </p>
               </div>
-              <div className="text-left md:text-right">
-                <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Goal Target</p>
-                <p className="text-2xl md:text-3xl font-bold text-transparent bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text">
-                  $100,000
-                </p>
+
+              {/* Today's target + daily loss limit bars — side by side, use full width */}
+              <div className="w-full md:flex-1 md:ml-6 self-end grid grid-cols-2 gap-6">
+                {/* Today's Target (compound rule) */}
+                {(() => {
+                  const hit = todayTargetUsd > 0 && todayProfit >= todayTargetUsd;
+                  const pct = todayTargetUsd > 0
+                    ? Math.min((todayProfit / todayTargetUsd) * 100, 100)
+                    : 0;
+                  return (
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-gray-500 uppercase tracking-wider">Today&apos;s Target ({compoundPercent}%)</span>
+                        <span className={`tabular-nums font-medium ${hit ? 'text-green-400' : 'text-gray-400'}`}>
+                          {formatCurrency(todayProfit)} / {formatCurrency(todayTargetUsd)}
+                        </span>
+                      </div>
+                      {/* Fills right → left (green) */}
+                      <div className="relative w-full bg-gray-700/60 rounded-full h-2.5 overflow-hidden flex justify-end">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-l from-green-500 to-emerald-400 transition-all duration-500"
+                          style={{ width: `${Math.max(pct, todayProfit > 0 ? 3 : 0)}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-600 mt-0.5 text-left md:text-right">
+                        {hit ? '🎯 Target reached for today!' : `${pct.toFixed(0)}% of daily target`}
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {/* Daily loss limit bar (calculated from wallet balance) */}
+                {(() => {
+                  const used = dailyLossLimitUsd > 0
+                    ? Math.min((todayLoss / dailyLossLimitUsd) * 100, 100)
+                    : 0;
+                  return (
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-gray-500 uppercase tracking-wider">Daily Loss Limit ({dailyLossLimitPercent}%)</span>
+                        <span className={`tabular-nums font-medium ${used >= 70 ? 'text-red-400' : 'text-gray-400'}`}>
+                          {formatCurrency(todayLoss)} / {formatCurrency(dailyLossLimitUsd)}
+                        </span>
+                      </div>
+                      {/* Fills left → right (red) */}
+                      <div className="relative w-full bg-gray-700/60 rounded-full h-2.5 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-500"
+                          style={{ width: `${Math.max(used, todayLoss > 0 ? 3 : 0)}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-600 mt-0.5 text-left md:text-right">
+                        {used >= 100
+                          ? 'Limit hit — new orders blocked'
+                          : `${used.toFixed(0)}% of daily limit used`}
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="flex-1 min-w-0 grid grid-cols-3 gap-2 md:gap-3">
-          <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-2 md:p-3 border border-gray-700/50">
-            <p className="text-gray-500 text-xs mb-1">Wallet</p>
-            <p className="text-base md:text-xl font-bold text-white tabular-nums">
-              {formatCurrency(mergedAccount?.totalWalletBalance || 0)}
-            </p>
-          </div>
-          <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-2 md:p-3 border border-gray-700/50">
-            <p className="text-gray-500 text-xs mb-1">Available</p>
-            <p className="text-base md:text-xl font-bold text-white tabular-nums">
-              {formatCurrency(mergedAccount?.availableBalance || 0)}
-            </p>
-          </div>
-          <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-2 md:p-3 border border-gray-700/50">
-            <p className="text-gray-500 text-xs mb-1">PnL</p>
-            <p className={`text-base md:text-xl font-bold tabular-nums transition-colors duration-300 ${
-              (futuresAccount?.totalUnrealizedProfit || 0) >= 0 ? 'text-green-400' : 'text-red-400'
-            }`}>
-              {(futuresAccount?.totalUnrealizedProfit || 0) >= 0 ? '+' : ''}
-              {formatCurrency(futuresAccount?.totalUnrealizedProfit || 0)}
-            </p>
-          </div>
+        {/* PnL card */}
+        <div className="w-32 md:w-44 flex-shrink-0 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-2 md:p-3 border border-gray-700/50 flex flex-col justify-center">
+          <p className="text-gray-500 text-[10px] md:text-xs mb-1">PnL</p>
+          <p className={`text-sm md:text-2xl font-bold tabular-nums truncate transition-colors duration-300 ${
+            (futuresAccount?.totalUnrealizedProfit || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+          }`}>
+            {(futuresAccount?.totalUnrealizedProfit || 0) >= 0 ? '+' : ''}
+            {formatCurrency(futuresAccount?.totalUnrealizedProfit || 0)}
+          </p>
         </div>
       </div>
 
