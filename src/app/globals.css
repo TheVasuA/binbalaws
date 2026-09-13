@@ -36,47 +36,106 @@ body {
    Default (no attribute) keeps the original gray look. */
 html[data-theme] body.theme-bg {
   background: var(--app-bg) fixed;
-  transition: background 0.3s ease;
+  color: var(--text, #e5e7eb);
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
-/* Re-tint the common gray surface + border utilities used across the app.
-   Placed in a layer that comes AFTER Tailwind's utilities so these win, and
-   gradients are flattened to a solid theme surface (overriding background-image
-   is required because Tailwind precomputes --tw-gradient-stops). */
-/* Unlayered rules with !important — these beat Tailwind's layered utilities. */
+/* ── Wallpaper layer ────────────────────────────────────────────────────────
+   A fixed, full-viewport layer behind all content. The image + opacity come
+   from CSS variables set by useWallpaper(). Sits above the themed body bg but
+   below the app (which uses translucent surfaces so it shows through). */
+.wallpaper-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--wallpaper-url, none);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  opacity: var(--wallpaper-opacity, 0);
+  transition: opacity 0.4s ease;
+}
+/* App content sits above the wallpaper. */
+.app-shell { position: relative; z-index: 1; }
+
+/* ── Surfaces (cards, panels) ────────────────────────────────────────────── */
 html[data-theme] .bg-gray-900,
+html[data-theme] .bg-gray-900\/95,
+html[data-theme] .bg-gray-900\/80,
+html[data-theme] .bg-gray-900\/70,
+html[data-theme] .bg-gray-900\/50,
+html[data-theme] .bg-gray-900\/30,
 html[data-theme] .bg-gray-800\/50,
+html[data-theme] .bg-gray-800\/40,
 html[data-theme] .bg-gray-800\/30 {
   background-image: none !important;
   background-color: var(--surface) !important;
 }
 
-html[data-theme] .bg-gray-800 {
-  background-image: none !important;
-  background-color: var(--surface-2) !important;
-}
-
-/* Only flatten gradient cards that use gray stops — leave colored text
-   gradients (e.g. from-green-400 bg-clip-text) untouched. */
+/* Slightly lighter surface + gradient cards flattened to --surface-2. */
+html[data-theme] .bg-gray-800,
+html[data-theme] .bg-gray-800\/80,
 html[data-theme] .from-gray-900,
-html[data-theme] .from-gray-800 {
+html[data-theme] .from-gray-800,
+html[data-theme] .bg-gray-700\/50,
+html[data-theme] .bg-gray-700 {
   background-image: none !important;
   background-color: var(--surface-2) !important;
 }
 
+/* ── Borders ─────────────────────────────────────────────────────────────── */
 html[data-theme] .border-gray-700,
 html[data-theme] .border-gray-700\/50,
+html[data-theme] .border-gray-700\/40,
 html[data-theme] .border-gray-800,
-html[data-theme] .border-gray-600 {
+html[data-theme] .border-gray-600,
+html[data-theme] .border-b.border-gray-700,
+html[data-theme] .border-b.border-gray-800 {
   border-color: var(--border) !important;
 }
 
-/* Navbar / sticky headers that use gray-900 with opacity. */
-html[data-theme] .bg-gray-900\/95,
-html[data-theme] .bg-gray-900\/80,
-html[data-theme] .bg-gray-900\/50 {
-  background-color: color-mix(in srgb, var(--surface) 92%, transparent) !important;
-  background-image: none !important;
+/* ── Navbar / sticky headers ─────────────────────────────────────────────── */
+/* Uses --nav (slightly distinct from cards) so the header reads as a bar. */
+html[data-theme] nav.bg-gray-800\/80 {
+  background-color: color-mix(in srgb, var(--nav, var(--surface)) 88%, transparent) !important;
+  border-color: var(--border) !important;
+}
+
+/* ── Text ─────────────────────────────────────────────────────────────────
+   --text = primary, --text-muted = secondary. Defined per theme so light
+   themes flip to dark ink automatically. */
+html[data-theme] .text-white { color: var(--text) !important; }
+html[data-theme] .text-gray-200,
+html[data-theme] .text-gray-300 { color: var(--text) !important; }
+html[data-theme] .text-gray-400,
+html[data-theme] .text-gray-500,
+html[data-theme] .text-gray-600 { color: var(--text-muted) !important; }
+
+/* Nav links: idle uses muted text, hover/active fill from theme. */
+html[data-theme] nav .hover\:bg-gray-700\/50:hover,
+html[data-theme] nav .hover\:bg-gray-800:hover {
+  background-color: var(--surface-2) !important;
+}
+html[data-theme] nav .hover\:text-white:hover { color: var(--text) !important; }
+
+/* Keep intentional accent text colors (green/red/blue/yellow PnL + badges)
+   untouched — only the neutral grays above are remapped. */
+
+/* Shared defaults for all DARK themes (light themes override --text below). */
+html[data-theme="midnight"],
+html[data-theme="slate"],
+html[data-theme="ocean"],
+html[data-theme="forest"],
+html[data-theme="grape"],
+html[data-theme="crimson"],
+html[data-theme="carbon"],
+html[data-theme="sand"],
+html[data-theme="teal"],
+html[data-theme="rose"] {
+  --text: #e5e7eb;
+  --text-muted: #94a3b8;
+  --nav: var(--surface);
 }
 
 /* 1. Midnight (default dark, gray) */
@@ -169,6 +228,9 @@ html[data-theme="light"] {
   --surface: #ffffff;
   --surface-2: #f3f4f6;
   --border: #d1d5db;
+  --text: #111827;
+  --text-muted: #4b5563;
+  --nav: #ffffff;
 }
 
 /* 12. Paper (warm off-white) */
@@ -177,37 +239,60 @@ html[data-theme="paper"] {
   --surface: #fbf8f2;
   --surface-2: #f3ede1;
   --border: #ddd3c2;
+  --text: #1c1917;
+  --text-muted: #57534e;
+  --nav: #fbf8f2;
 }
 
-/* Text/readability fixes applied only on light themes. */
-html[data-theme="light"] .text-white,
-html[data-theme="paper"] .text-white,
-html[data-theme="light"] .text-gray-200,
-html[data-theme="paper"] .text-gray-200,
-html[data-theme="light"] .text-gray-300,
-html[data-theme="paper"] .text-gray-300 {
-  color: #111827 !important;
-}
-html[data-theme="light"] .text-gray-400,
-html[data-theme="paper"] .text-gray-400,
-html[data-theme="light"] .text-gray-500,
-html[data-theme="paper"] .text-gray-500,
-html[data-theme="light"] .text-gray-600,
-html[data-theme="paper"] .text-gray-600 {
-  color: #4b5563 !important;
-}
-/* Gradient clip-text headings (balance, goal) → solid dark so they stay visible. */
+/* Gradient clip-text headings (balance, goal) → solid dark so they stay
+   visible on a light background. */
 html[data-theme="light"] .bg-clip-text.text-transparent,
 html[data-theme="paper"] .bg-clip-text.text-transparent {
-  -webkit-text-fill-color: #111827 !important;
-  color: #111827 !important;
+  -webkit-text-fill-color: var(--text) !important;
+  color: var(--text) !important;
   background: none !important;
 }
-/* Inputs on light themes. */
-html[data-theme="light"] .bg-gray-900,
-html[data-theme="paper"] .bg-gray-900 {
-  color: #111827 !important;
+
+/* ── Light-theme readability sweep ─────────────────────────────────────────
+   The app is dark-first, so it uses near-white text and very light accent
+   shades (…-100/-200/-300) that disappear on a white surface. Darken those to
+   readable equivalents. The …-400/-500 accents (PnL green/red, badges) already
+   contrast fine on white and are left alone to preserve meaning. */
+
+/* Extra neutral text not covered by the token rules. */
+html[data-theme="light"] .text-gray-100,
+html[data-theme="paper"] .text-gray-100 { color: var(--text) !important; }
+
+/* Too-light accent text → darker, still-colored equivalents. */
+html[data-theme="light"] .text-blue-200,   html[data-theme="paper"] .text-blue-200,
+html[data-theme="light"] .text-blue-300,   html[data-theme="paper"] .text-blue-300 { color: #1d4ed8 !important; }
+html[data-theme="light"] .text-green-200,  html[data-theme="paper"] .text-green-200,
+html[data-theme="light"] .text-green-300,  html[data-theme="paper"] .text-green-300 { color: #15803d !important; }
+html[data-theme="light"] .text-red-200,    html[data-theme="paper"] .text-red-200,
+html[data-theme="light"] .text-red-300,    html[data-theme="paper"] .text-red-300 { color: #b91c1c !important; }
+html[data-theme="light"] .text-yellow-200, html[data-theme="paper"] .text-yellow-200,
+html[data-theme="light"] .text-yellow-300, html[data-theme="paper"] .text-yellow-300,
+html[data-theme="light"] .text-yellow-400, html[data-theme="paper"] .text-yellow-400 { color: #a16207 !important; }
+html[data-theme="light"] .text-orange-200, html[data-theme="paper"] .text-orange-200,
+html[data-theme="light"] .text-orange-300, html[data-theme="paper"] .text-orange-300 { color: #c2410c !important; }
+html[data-theme="light"] .text-purple-300, html[data-theme="paper"] .text-purple-300 { color: #7e22ce !important; }
+
+/* The yellow "10M$" brand + amber symbol names use a light amber → darken so
+   they read on white (keeps a gold tone). */
+html[data-theme="light"] .text-yellow-400.text-lg,
+html[data-theme="paper"] .text-yellow-400.text-lg { color: #b45309 !important; }
+
+/* Kill light text-shadows/glows that only make sense on dark backgrounds. */
+html[data-theme="light"] [class*="text-shadow"],
+html[data-theme="paper"] [class*="text-shadow"] {
+  text-shadow: none !important;
 }
+
+/* Active nav pill keeps white text on its blue fill. */
+html[data-theme="light"] .bg-blue-600.text-white,
+html[data-theme="paper"] .bg-blue-600.text-white,
+html[data-theme="light"] .bg-blue-600 .text-white,
+html[data-theme="paper"] .bg-blue-600 .text-white { color: #ffffff !important; }
 
 /* Shimmer animation for progress bar */
 @keyframes shimmer {

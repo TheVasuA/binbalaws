@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { usePortfolioSettings } from '@/lib/settings';
 import { useBackendFuturesStream } from '@/lib/backendWS';
-import { useTheme } from '@/lib/theme';
+import { useTheme, useWallpaper } from '@/lib/theme';
+import { WALLPAPERS } from '@/lib/wallpapers';
 import { formatCurrency } from '@/lib/utils';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ForceCloseAllButton from '@/components/ForceCloseAllButton';
@@ -88,6 +89,7 @@ export default function SettingsPage() {
   const { settings, loading, saving, error, save, reset } = usePortfolioSettings();
   const { account, positions } = useBackendFuturesStream();
   const { theme, setTheme, themes } = useTheme();
+  const { wallpaper, opacity, setWallpaper, setOpacity } = useWallpaper();
 
   const [form, setForm] = useState(settings);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -134,6 +136,7 @@ export default function SettingsPage() {
     { id: 'risk-actions', label: '⛔ Risk Actions' },
     { id: 'account-status', label: '📡 Account' },
     { id: 'theme', label: '🎨 Theme' },
+    { id: 'wallpaper', label: '🖼 Wallpaper' },
     { id: 'preferences', label: '🛠 Preferences' },
   ];
 
@@ -278,6 +281,67 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      )}
+
+      {/* Wallpaper picker */}
+      {activeSection === 'wallpaper' && (
+      <section className="mb-6 bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6">
+        <h2 className="text-lg font-semibold text-white mb-1">Wallpaper</h2>
+        <p className="text-gray-500 text-xs mb-4">
+          Nature, galaxy and calm backdrops shown faintly behind the dashboard. Applies instantly.
+        </p>
+
+        {/* Opacity slider */}
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-sm text-gray-300 whitespace-nowrap">Opacity</span>
+          <input
+            type="range"
+            min="0"
+            max="60"
+            step="1"
+            value={opacity}
+            onChange={(e) => setOpacity(Number(e.target.value))}
+            className="flex-1 accent-blue-500 cursor-pointer"
+          />
+          <span className="text-sm text-gray-400 w-10 tabular-nums text-right">{opacity}%</span>
+        </div>
+
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+          {/* None option */}
+          <button
+            type="button"
+            onClick={() => setWallpaper('')}
+            className={`relative aspect-video rounded-lg border flex items-center justify-center text-xs text-gray-300 transition-all ${
+              !wallpaper ? 'border-blue-500 ring-2 ring-blue-500/40' : 'border-gray-700 hover:border-gray-500'
+            }`}
+          >
+            None
+          </button>
+          {WALLPAPERS.map((w) => (
+            <button
+              key={w.id}
+              type="button"
+              onClick={() => setWallpaper(w.url)}
+              title={w.cat}
+              className={`relative aspect-video rounded-lg overflow-hidden border transition-all ${
+                wallpaper === w.url ? 'border-blue-500 ring-2 ring-blue-500/40' : 'border-gray-700 hover:border-gray-500'
+              }`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={w.thumb} alt={w.cat} loading="lazy" className="w-full h-full object-cover" />
+              {wallpaper === w.url && (
+                <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-white text-lg">✓</span>
+              )}
+              <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-[10px] text-gray-200 px-1 py-0.5 text-center">
+                {w.cat}
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="text-gray-600 text-[11px] mt-3">
+          Photos from Unsplash — free to use under the Unsplash License.
+        </p>
+      </section>
       )}
 
       {/* Settings form */}

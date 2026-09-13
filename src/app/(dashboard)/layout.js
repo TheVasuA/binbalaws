@@ -3,9 +3,13 @@
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import { NotificationProvider } from '@/lib/notify';
+import { useWallpaper } from '@/lib/theme';
 
 export default function DashboardLayout({ children }) {
   const [progressData, setProgressData] = useState(null);
+
+  // Load + apply the saved wallpaper (image + opacity) behind the app.
+  useWallpaper();
 
   // Fetch progress data ONCE on initial load
   useEffect(() => {
@@ -79,7 +83,9 @@ export default function DashboardLayout({ children }) {
 
   return (
     <NotificationProvider>
-      <div className="min-h-screen bg-gray-900">
+      {/* Fixed wallpaper layer behind everything */}
+      <div className="wallpaper-layer" aria-hidden="true" />
+      <div className="app-shell min-h-screen">
         <Navbar progressData={progressData} />
 
         <main>

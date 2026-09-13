@@ -22,11 +22,59 @@ export const THEMES = [
 
 export const DEFAULT_THEME = 'midnight';
 const STORAGE_KEY = 'app_theme';
+const WALLPAPER_KEY = 'app_wallpaper';      // stores the image URL ('' = none)
+const WALLPAPER_OPACITY_KEY = 'app_wallpaper_opacity'; // 0..100
 
 export function applyTheme(themeId) {
   if (typeof document === 'undefined') return;
   const id = THEMES.some((t) => t.id === themeId) ? themeId : DEFAULT_THEME;
   document.documentElement.setAttribute('data-theme', id);
+}
+
+// Apply the wallpaper as CSS variables consumed by the fixed background layer.
+export function applyWallpaper(url, opacity) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  root.style.setProperty('--wallpaper-url', url ? `url("${url}")` : 'none');
+  root.style.setProperty('--wallpaper-opacity', String((Number(opacity) || 0) / 100));
+}
+
+/**
+ * Wallpaper hook: persists the chosen wallpaper URL + opacity and applies them
+ * to the fixed background layer via CSS variables.
+ */
+export function useWallpaper() {
+  const [wallpaper, setWallpaperState] = useState('');
+  const [opacity, setOpacityState] = useState(15);
+
+  useEffect(() => {
+    let url = '';
+    let op = 15;
+    try {
+      url = localStorage.getItem(WALLPAPER_KEY) || '';
+      const savedOp = localStorage.getItem(WALLPAPER_OPACITY_KEY);
+      if (savedOp !== null) op = Number(savedOp);
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setWallpaperState(url);
+    setOpacityState(op);
+    applyWallpaper(url, op);
+  }, []);
+
+  const setWallpaper = useCallback((url) => {
+    setWallpaperState(url);
+    try { localStorage.setItem(WALLPAPER_KEY, url || ''); } catch { /* ignore */ }
+    setOpacityState((op) => { applyWallpaper(url, op); return op; });
+  }, []);
+
+  const setOpacity = useCallback((op) => {
+    const val = Number(op) || 0;
+    setOpacityState(val);
+    try { localStorage.setItem(WALLPAPER_OPACITY_KEY, String(val)); } catch { /* ignore */ }
+    setWallpaperState((url) => { applyWallpaper(url, val); return url; });
+  }, []);
+
+  return { wallpaper, opacity, setWallpaper, setOpacity };
 }
 
 /**
