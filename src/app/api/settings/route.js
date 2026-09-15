@@ -22,6 +22,8 @@ const DEFAULTS = {
   alarmLossPercent: 8,       // beep + alert when daily loss reaches this % of margin
   autoCloseOnBreaker: 0,     // 1 = auto-close all positions (except >=20x) when
                              // the daily loss limit is hit; 0 = only block
+  allowOrdersAfterBreach: 0, // 1 = allow new orders even after the daily loss
+                             // limit is breached (override the circuit breaker)
 };
 
 export async function GET() {

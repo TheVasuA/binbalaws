@@ -202,6 +202,25 @@ export default function SettingsPage() {
           </span>
         </label>
 
+        {/* Override: allow new orders even after the daily limit is breached */}
+        <label className="flex items-start gap-3 cursor-pointer mb-4">
+          <input
+            type="checkbox"
+            checked={Number(form.allowOrdersAfterBreach) === 1}
+            onChange={(e) => handleChange('allowOrdersAfterBreach', e.target.checked ? 1 : 0)}
+            className="mt-0.5 h-4 w-4 accent-yellow-500"
+          />
+          <span>
+            <span className="text-sm text-gray-200 font-medium">
+              Allow new orders after daily limit is breached
+            </span>
+            <span className="block text-gray-500 text-xs mt-0.5">
+              Override the circuit breaker — new orders (any leverage) are allowed even
+              after today&apos;s loss passes {form.dailyLossLimitPercent}%. Use with discipline.
+            </span>
+          </span>
+        </label>
+
         <div className="flex flex-wrap items-center gap-3">
           <ForceCloseAllButton />
           <ForceCloseAllButton zero />

@@ -28,14 +28,18 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-// Read the daily-loss circuit-breaker limit from saved settings (default 10%).
-async function getDailyLossLimitPercent() {
+// Read circuit-breaker settings: daily-loss limit % (default 10) and whether
+// new orders are allowed even after the limit is breached (override, default no).
+async function getBreakerSettings() {
   try {
     const s = await redis.get('portfolio_settings');
-    const v = Number(s?.dailyLossLimitPercent);
-    return Number.isFinite(v) && v > 0 ? v : 10;
+    const pct = Number(s?.dailyLossLimitPercent);
+    return {
+      lossLimitPercent: Number.isFinite(pct) && pct > 0 ? pct : 10,
+      allowAfterBreach: Number(s?.allowOrdersAfterBreach) === 1,
+    };
   } catch {
-    return 10;
+    return { lossLimitPercent: 10, allowAfterBreach: false };
   }
 }
 
@@ -242,13 +246,17 @@ export async function POST(request) {
       const HUGE_ORDER_LEVERAGE = 20;
       const isHugeOrder = leverageValue >= HUGE_ORDER_LEVERAGE;
 
-      if (!isHugeOrder) {
+      const breakerSettings = await getBreakerSettings();
+
+      // Skip the breaker for huge (>=20x) orders, OR when the user has enabled
+      // the "allow orders after breach" override in Settings.
+      if (!isHugeOrder && !breakerSettings.allowAfterBreach) {
       try {
-        const [lossLimitPercent, dailyPnl, account] = await Promise.all([
-          getDailyLossLimitPercent(),
+        const [dailyPnl, account] = await Promise.all([
           getTodayRealizedPnl(),
           getFuturesAccount(),
         ]);
+        const lossLimitPercent = breakerSettings.lossLimitPercent;
         const marginBalance = Number(account?.totalMarginBalance) || 0;
         const lossLimitUsd = marginBalance * (lossLimitPercent / 100);
         const realizedLoss = Math.max(0, -(dailyPnl?.realizedPnl || 0)); // positive = loss
