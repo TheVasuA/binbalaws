@@ -822,6 +822,18 @@ export async function cancelFuturesExitOrders(symbol, entrySide) {
   return cancelled;
 }
 
+// Cancel a single open futures order (e.g. a resting LIMIT entry) by orderId.
+export async function cancelFuturesOrder(symbol, orderId) {
+  const upperSymbol = String(symbol || '').toUpperCase();
+  if (!upperSymbol || orderId === undefined || orderId === null || orderId === '') {
+    throw new Error('symbol and orderId are required to cancel an order');
+  }
+  return futuresSignedDelete('/fapi/v1/order', {
+    symbol: upperSymbol,
+    orderId,
+  });
+}
+
 function normalizeTriggerPrice(rawPrice, pricePrecision = null) {
   const parsedPrice = Number(rawPrice);
   if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {

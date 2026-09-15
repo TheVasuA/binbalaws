@@ -23,6 +23,9 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
   const [editRiskSymbol, setEditRiskSymbol] = useState(null);
   const [editSLUsdt, setEditSLUsdt] = useState('');
   const [editTPUsdt, setEditTPUsdt] = useState('');
+  const [editRiskMode, setEditRiskMode] = useState('usdt'); // 'usdt' | 'price'
+  const [editSLPrice, setEditSLPrice] = useState('');
+  const [editTPPrice, setEditTPPrice] = useState('');
   const [editRiskSubmitting, setEditRiskSubmitting] = useState(false);
   const [editRiskError, setEditRiskError] = useState('');
 
@@ -30,6 +33,8 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
     setEditRiskSymbol(position.symbol);
     setEditSLUsdt(position.stopLossValue ? Math.abs(Number(position.stopLossValue)).toFixed(2) : '');
     setEditTPUsdt(position.takeProfitValue ? Math.abs(Number(position.takeProfitValue)).toFixed(2) : '');
+    setEditSLPrice(position.stopLossPrice ? String(position.stopLossPrice) : '');
+    setEditTPPrice(position.takeProfitPrice ? String(position.takeProfitPrice) : '');
     setEditRiskError('');
   };
 
@@ -43,29 +48,50 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
     const entry = parseFloat(position.entryPrice);
     if (!qty || !entry) return;
 
-    const slUsdt = parseFloat(editSLUsdt);
-    const tpUsdt = parseFloat(editTPUsdt);
-
     let slPrice = null;
     let tpPrice = null;
 
-    if (editSLUsdt !== '' && !isNaN(slUsdt) && slUsdt > 0) {
-      slPrice = position.side === 'LONG'
-        ? entry - slUsdt / qty
-        : entry + slUsdt / qty;
-      if (slPrice <= 0) {
-        setEditRiskError('Stop loss USDT value is too large for this position.');
-        return;
+    if (editRiskMode === 'price') {
+      // Direct price entry.
+      const slp = parseFloat(editSLPrice);
+      const tpp = parseFloat(editTPPrice);
+      if (editSLPrice !== '' && !isNaN(slp) && slp > 0) {
+        const wrong = position.side === 'LONG' ? slp >= entry : slp <= entry;
+        if (wrong) {
+          setEditRiskError(`Stop loss price must be ${position.side === 'LONG' ? 'below' : 'above'} entry (${entry}).`);
+          return;
+        }
+        slPrice = slp;
       }
-    }
-
-    if (editTPUsdt !== '' && !isNaN(tpUsdt) && tpUsdt > 0) {
-      tpPrice = position.side === 'LONG'
-        ? entry + tpUsdt / qty
-        : entry - tpUsdt / qty;
-      if (tpPrice <= 0) {
-        setEditRiskError('Target USDT value is too large for this position.');
-        return;
+      if (editTPPrice !== '' && !isNaN(tpp) && tpp > 0) {
+        const wrong = position.side === 'LONG' ? tpp <= entry : tpp >= entry;
+        if (wrong) {
+          setEditRiskError(`Target price must be ${position.side === 'LONG' ? 'above' : 'below'} entry (${entry}).`);
+          return;
+        }
+        tpPrice = tpp;
+      }
+    } else {
+      // USDT risk amount → price.
+      const slUsdt = parseFloat(editSLUsdt);
+      const tpUsdt = parseFloat(editTPUsdt);
+      if (editSLUsdt !== '' && !isNaN(slUsdt) && slUsdt > 0) {
+        slPrice = position.side === 'LONG'
+          ? entry - slUsdt / qty
+          : entry + slUsdt / qty;
+        if (slPrice <= 0) {
+          setEditRiskError('Stop loss USDT value is too large for this position.');
+          return;
+        }
+      }
+      if (editTPUsdt !== '' && !isNaN(tpUsdt) && tpUsdt > 0) {
+        tpPrice = position.side === 'LONG'
+          ? entry + tpUsdt / qty
+          : entry - tpUsdt / qty;
+        if (tpPrice <= 0) {
+          setEditRiskError('Target USDT value is too large for this position.');
+          return;
+        }
       }
     }
 
@@ -171,6 +197,38 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
     }
   };
 
+  // Cancel a resting limit (pending) order by its orderId.
+  const handleCancelOrder = async (order) => {
+    const oid = order.orderId ?? order.orderID ?? order.id;
+    if (!order?.symbol || oid === undefined || oid === null) {
+      alert('Cannot cancel: missing order id.');
+      return;
+    }
+    if (!confirm(`Cancel pending ${order.symbol} order?`)) return;
+
+    setClosing(order.symbol);
+    try {
+      const response = await fetch('/api/futures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cancelOrder',
+          symbol: order.symbol,
+          orderId: oid,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to cancel order');
+      }
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setClosing(null);
+    }
+  };
+
   if ((!positions || positions.length === 0) && (!pendingOrders || pendingOrders.length === 0)) {
     return (
       <div className="flex items-center justify-center h-32 text-gray-500">
@@ -207,6 +265,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                   <p className="text-white">{order.status}</p>
                 </div>
               </div>
+              <button
+                onClick={() => handleCancelOrder(order)}
+                disabled={closing === order.symbol}
+                className="mt-3 w-full py-2 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white"
+              >
+                {closing === order.symbol ? 'Cancelling…' : 'Cancel Order'}
+              </button>
             </div>
           ))}
         </div>
@@ -242,7 +307,17 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                   {formatCurrency(order.price)}
                 </td>
                 <td className="py-2 px-2 text-center">
-                  <span className="px-2 py-1 rounded text-xs font-semibold bg-yellow-500/20 text-yellow-400">Pending</span>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="px-2 py-1 rounded text-xs font-semibold bg-yellow-500/20 text-yellow-400">Pending</span>
+                    <button
+                      onClick={() => handleCancelOrder(order)}
+                      disabled={closing === order.symbol}
+                      title="Cancel limit order"
+                      className="px-2 py-1 rounded text-xs font-semibold bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white"
+                    >
+                      {closing === order.symbol ? '…' : 'Cancel'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -377,35 +452,66 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
 
               {editRiskSymbol === position.symbol && (
                 <div className="mt-2 rounded-lg border border-orange-500/40 bg-gray-900 p-3 space-y-2">
-                  <p className="text-xs text-gray-400 font-semibold">Edit SL / Target (USDT risk amount)</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] text-red-400 block mb-0.5">Stop Loss (USDT)</label>
-                      <input
-                        type="number" min="0" step="0.01" placeholder="e.g. 50"
-                        value={editSLUsdt}
-                        onChange={(e) => setEditSLUsdt(e.target.value)}
-                        className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-green-400 block mb-0.5">Target (USDT)</label>
-                      <input
-                        type="number" min="0" step="0.01" placeholder="e.g. 100"
-                        value={editTPUsdt}
-                        onChange={(e) => setEditTPUsdt(e.target.value)}
-                        className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-green-500"
-                      />
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-400 font-semibold">Edit SL / Target</p>
+                    <div className="flex gap-1 bg-gray-800 border border-gray-700 rounded-lg p-0.5">
+                      <button type="button" onClick={() => setEditRiskMode('usdt')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium ${editRiskMode === 'usdt' ? 'bg-orange-600 text-white' : 'text-gray-400'}`}>USDT</button>
+                      <button type="button" onClick={() => setEditRiskMode('price')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium ${editRiskMode === 'price' ? 'bg-orange-600 text-white' : 'text-gray-400'}`}>Price</button>
                     </div>
                   </div>
-                  {editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
+                  {editRiskMode === 'usdt' ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-red-400 block mb-0.5">Stop Loss (USDT)</label>
+                        <input
+                          type="number" min="0" step="0.01" placeholder="e.g. 50"
+                          value={editSLUsdt}
+                          onChange={(e) => setEditSLUsdt(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-green-400 block mb-0.5">Target (USDT)</label>
+                        <input
+                          type="number" min="0" step="0.01" placeholder="e.g. 100"
+                          value={editTPUsdt}
+                          onChange={(e) => setEditTPUsdt(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-green-500"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-red-400 block mb-0.5">Stop Loss (Price)</label>
+                        <input
+                          type="number" min="0" step="any" placeholder="trigger price"
+                          value={editSLPrice}
+                          onChange={(e) => setEditSLPrice(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500 tabular-nums"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-green-400 block mb-0.5">Target (Price)</label>
+                        <input
+                          type="number" min="0" step="any" placeholder="trigger price"
+                          value={editTPPrice}
+                          onChange={(e) => setEditTPPrice(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-green-500 tabular-nums"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {editRiskMode === 'usdt' && editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
                     <p className="text-[10px] text-red-300">
                       SL Price ≈ {position.side === 'LONG'
                         ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
                         : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
                     </p>
                   )}
-                  {editTPUsdt && !isNaN(parseFloat(editTPUsdt)) && parseFloat(editTPUsdt) > 0 && (
+                  {editRiskMode === 'usdt' && editTPUsdt && !isNaN(parseFloat(editTPUsdt)) && parseFloat(editTPUsdt) > 0 && (
                     <p className="text-[10px] text-green-300">
                       Target Price ≈ {position.side === 'LONG'
                         ? (parseFloat(position.entryPrice) + parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
@@ -616,39 +722,71 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 <tr className="border-b border-orange-500/30 bg-orange-950/40">
                   <td colSpan="10" className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-xs text-orange-300 font-semibold whitespace-nowrap">Edit SL / Target (USDT)</span>
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-[10px] text-red-400">SL:</label>
-                        <input
-                          type="number" min="0" step="0.01" placeholder="USDT"
-                          value={editSLUsdt}
-                          onChange={(e) => setEditSLUsdt(e.target.value)}
-                          className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500"
-                        />
-                        {editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
-                          <span className="text-[10px] text-red-300">
-                            ≈ {position.side === 'LONG'
-                              ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
-                              : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
-                          </span>
-                        )}
+                      <span className="text-xs text-orange-300 font-semibold whitespace-nowrap">Edit SL / Target</span>
+                      <div className="flex gap-1 bg-gray-800 border border-gray-700 rounded-lg p-0.5">
+                        <button type="button" onClick={() => setEditRiskMode('usdt')}
+                          className={`px-2 py-0.5 rounded text-[10px] font-medium ${editRiskMode === 'usdt' ? 'bg-orange-600 text-white' : 'text-gray-400'}`}>USDT</button>
+                        <button type="button" onClick={() => setEditRiskMode('price')}
+                          className={`px-2 py-0.5 rounded text-[10px] font-medium ${editRiskMode === 'price' ? 'bg-orange-600 text-white' : 'text-gray-400'}`}>Price</button>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-[10px] text-green-400">Target:</label>
-                        <input
-                          type="number" min="0" step="0.01" placeholder="USDT"
-                          value={editTPUsdt}
-                          onChange={(e) => setEditTPUsdt(e.target.value)}
-                          className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-green-500"
-                        />
-                        {editTPUsdt && !isNaN(parseFloat(editTPUsdt)) && parseFloat(editTPUsdt) > 0 && (
-                          <span className="text-[10px] text-green-300">
-                            ≈ {position.side === 'LONG'
-                              ? (parseFloat(position.entryPrice) + parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
-                              : (parseFloat(position.entryPrice) - parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
-                          </span>
-                        )}
-                      </div>
+                      {editRiskMode === 'usdt' ? (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[10px] text-red-400">SL:</label>
+                            <input
+                              type="number" min="0" step="0.01" placeholder="USDT"
+                              value={editSLUsdt}
+                              onChange={(e) => setEditSLUsdt(e.target.value)}
+                              className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500"
+                            />
+                            {editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
+                              <span className="text-[10px] text-red-300">
+                                ≈ {position.side === 'LONG'
+                                  ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
+                                  : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[10px] text-green-400">Target:</label>
+                            <input
+                              type="number" min="0" step="0.01" placeholder="USDT"
+                              value={editTPUsdt}
+                              onChange={(e) => setEditTPUsdt(e.target.value)}
+                              className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-green-500"
+                            />
+                            {editTPUsdt && !isNaN(parseFloat(editTPUsdt)) && parseFloat(editTPUsdt) > 0 && (
+                              <span className="text-[10px] text-green-300">
+                                ≈ {position.side === 'LONG'
+                                  ? (parseFloat(position.entryPrice) + parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
+                                  : (parseFloat(position.entryPrice) - parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[10px] text-red-400">SL price:</label>
+                            <input
+                              type="number" min="0" step="any" placeholder="price"
+                              value={editSLPrice}
+                              onChange={(e) => setEditSLPrice(e.target.value)}
+                              className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500 tabular-nums"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[10px] text-green-400">Target price:</label>
+                            <input
+                              type="number" min="0" step="any" placeholder="price"
+                              value={editTPPrice}
+                              onChange={(e) => setEditTPPrice(e.target.value)}
+                              className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-green-500 tabular-nums"
+                            />
+                          </div>
+                          <span className="text-[10px] text-gray-500">Entry {position.entryPrice}</span>
+                        </>
+                      )}
                       {editRiskError && <span className="text-xs text-red-400">{editRiskError}</span>}
                       <button onClick={() => handleSaveRisk(position)} disabled={editRiskSubmitting}
                         className="ml-auto px-3 py-1 rounded text-xs font-semibold bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white">
@@ -743,9 +881,10 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                   <td className="py-2 px-3 text-blue-200">{order.price}</td>
                   <td className="py-2 px-3 text-blue-200">
                     <button
-                      className="bg-red-400 hover:bg-red-600 text-white rounded px-2 py-1 text-xs"
-                      onClick={() => handleForceClose(order)}
-                    >X</button>
+                      className="bg-red-400 hover:bg-red-600 text-white rounded px-2 py-1 text-xs disabled:opacity-50"
+                      disabled={closing === order.symbol}
+                      onClick={() => handleCancelOrder(order)}
+                    >{closing === order.symbol ? '…' : 'X'}</button>
                   </td>
                 </tr>
               ))}

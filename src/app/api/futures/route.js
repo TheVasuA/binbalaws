@@ -11,6 +11,7 @@ import {
   placeFuturesLimitOrder,
   placeFuturesExitOrders,
   cancelFuturesExitOrders,
+  cancelFuturesOrder,
   closePosition,
   closeAllPositions,
   getTodayRealizedPnl,
@@ -204,6 +205,7 @@ export async function POST(request) {
       orderType,      // 'MARKET' (default) or 'LIMIT'
       limitPrice,     // required when orderType === 'LIMIT'
       pricePrecision, // symbol price precision for rounding the limit price
+      orderId,        // for cancelOrder
     } = body;
 
     if (action === 'openPosition') {
@@ -423,6 +425,17 @@ export async function POST(request) {
         success: true,
         data: result,
       });
+    }
+
+    if (action === 'cancelOrder') {
+      if (!symbol || orderId === undefined || orderId === null || orderId === '') {
+        return NextResponse.json({
+          error: 'Missing required fields: symbol, orderId',
+        }, { status: 400 });
+      }
+      const result = await cancelFuturesOrder(symbol, orderId);
+      await invalidateFuturesCaches();
+      return NextResponse.json({ success: true, data: result });
     }
 
     if (action === 'closeAll') {
