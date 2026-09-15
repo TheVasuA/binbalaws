@@ -19,6 +19,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
   const [partialClosePct, setPartialClosePct] = useState(25);
   const [partialSubmitting, setPartialSubmitting] = useState(false);
   const [partialError, setPartialError] = useState('');
+  const [exitLimitPrice, setExitLimitPrice] = useState(''); // '' = market exit
   const [editRiskSymbol, setEditRiskSymbol] = useState(null);
   const [editSLUsdt, setEditSLUsdt] = useState('');
   const [editTPUsdt, setEditTPUsdt] = useState('');
@@ -97,11 +98,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
     setPartialCloseSymbol(symbol);
     setPartialClosePct(25);
     setPartialError('');
+    setExitLimitPrice('');
   };
 
   const cancelPartialClose = () => {
     setPartialCloseSymbol(null);
     setPartialError('');
+    setExitLimitPrice('');
   };
 
   const handlePartialClose = async (position) => {
@@ -120,11 +123,14 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
           symbol: position.symbol,
           side: position.side,
           quantity: closeQty,
+          // Optional limit-exit price ('' = market close).
+          limitPrice: exitLimitPrice.trim() === '' ? undefined : Number(exitLimitPrice),
         }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Failed to close position');
       setPartialCloseSymbol(null);
+      setExitLimitPrice('');
       if (onRefresh) onRefresh();
     } catch (err) {
       setPartialError(err.message);
@@ -683,10 +689,26 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                       <span className={`text-sm font-bold ${ pnl >= 0 ? 'text-green-400' : 'text-red-400' }`}>
                         PnL: {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} USDT
                       </span>
+                      {/* Limit-exit price (empty = market close) */}
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number" min="0" step="any"
+                          value={exitLimitPrice}
+                          onChange={(e) => setExitLimitPrice(e.target.value)}
+                          placeholder="Limit price (blank = market)"
+                          className="w-44 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500"
+                        />
+                        <button type="button" onClick={() => setExitLimitPrice(String(position.markPrice))}
+                          className="text-[10px] text-blue-400 hover:text-blue-300 whitespace-nowrap">
+                          use mark
+                        </button>
+                      </div>
                       {partialError && <span className="text-xs text-red-400">{partialError}</span>}
                       <button onClick={() => handlePartialClose(position)} disabled={partialSubmitting}
                         className="ml-auto px-3 py-1 rounded text-xs font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white">
-                        {partialSubmitting ? 'Closing...' : `Close ${partialClosePct}%`}
+                        {partialSubmitting
+                          ? 'Closing...'
+                          : `${exitLimitPrice.trim() ? 'Limit ' : ''}Close ${partialClosePct}%`}
                       </button>
                     </div>
                   </td>

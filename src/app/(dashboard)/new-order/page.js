@@ -155,12 +155,20 @@ export default function NewOrderPage() {
   const [coinsTab, setCoinsTab] = useState('threeDay');
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [side, setSide] = useState('BUY');
+  const [orderType, setOrderType] = useState('MARKET'); // 'MARKET' | 'LIMIT'
+  const [limitPrice, setLimitPrice] = useState('');
+  const [isLimitPriceEdited, setIsLimitPriceEdited] = useState(false);
   const [usdtAmount, setUsdtAmount] = useState('100');
   const [leverage, setLeverage] = useState(15);
   const [stopLossUsdt, setStopLossUsdt] = useState('');
   const [isStopLossEdited, setIsStopLossEdited] = useState(false);
   const [takeProfitUsdt, setTakeProfitUsdt] = useState('');
   const [isTargetEdited, setIsTargetEdited] = useState(false);
+  // SL/Target input mode: 'usdt' = risk in USDT (converted), 'price' = enter
+  // the trigger price directly.
+  const [riskMode, setRiskMode] = useState('usdt');
+  const [stopLossPriceInput, setStopLossPriceInput] = useState('');
+  const [takeProfitPriceInput, setTakeProfitPriceInput] = useState('');
   const [chartInterval, setChartInterval] = useState('60');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -319,6 +327,19 @@ export default function NewOrderPage() {
   const currentPrice = useMemo(() => {
     return Number(priceData?.[symbol]?.price || 0);
   }, [priceData, symbol]);
+
+  // Pre-fill the limit price with the recent/current price until the user edits
+  // it. Resets to follow the price when the symbol changes.
+  useEffect(() => {
+    if (!isLimitPriceEdited && currentPrice > 0) {
+      setLimitPrice(String(currentPrice));
+    }
+  }, [currentPrice, symbol, isLimitPriceEdited]);
+
+  // When the symbol changes, re-arm auto-fill of the limit price.
+  useEffect(() => {
+    setIsLimitPriceEdited(false);
+  }, [symbol]);
 
   const notionalValue = useMemo(() => {
     const amount = Number(usdtAmount);
@@ -520,22 +541,30 @@ export default function NewOrderPage() {
       return;
     }
 
-    const parsedStopLossUsdt =
-      stopLossUsdt.trim() === ''
-        ? null
-        : Number(stopLossUsdt);
-    const parsedTakeProfitUsdt =
-      takeProfitUsdt.trim() === ''
-        ? null
-        : Number(takeProfitUsdt);
+    const isPriceMode = riskMode === 'price';
+
+    // USDT-mode inputs (risk amounts) — only validated when in USDT mode.
+    const parsedStopLossUsdt = isPriceMode || stopLossUsdt.trim() === '' ? null : Number(stopLossUsdt);
+    const parsedTakeProfitUsdt = isPriceMode || takeProfitUsdt.trim() === '' ? null : Number(takeProfitUsdt);
+
+    // Price-mode inputs (trigger prices entered directly).
+    const parsedStopLossPriceInput = !isPriceMode || stopLossPriceInput.trim() === '' ? null : Number(stopLossPriceInput);
+    const parsedTakeProfitPriceInput = !isPriceMode || takeProfitPriceInput.trim() === '' ? null : Number(takeProfitPriceInput);
 
     if (parsedStopLossUsdt !== null && (!Number.isFinite(parsedStopLossUsdt) || parsedStopLossUsdt <= 0)) {
       setSubmitError('Stop loss USDT value must be a positive number or empty.');
       return;
     }
-
     if (parsedTakeProfitUsdt !== null && (!Number.isFinite(parsedTakeProfitUsdt) || parsedTakeProfitUsdt <= 0)) {
       setSubmitError('Target USDT value must be a positive number or empty.');
+      return;
+    }
+    if (parsedStopLossPriceInput !== null && (!Number.isFinite(parsedStopLossPriceInput) || parsedStopLossPriceInput <= 0)) {
+      setSubmitError('Stop loss price must be a positive number or empty.');
+      return;
+    }
+    if (parsedTakeProfitPriceInput !== null && (!Number.isFinite(parsedTakeProfitPriceInput) || parsedTakeProfitPriceInput <= 0)) {
+      setSubmitError('Target price must be a positive number or empty.');
       return;
     }
 
@@ -544,7 +573,16 @@ export default function NewOrderPage() {
       return;
     }
 
-    const rawQuantity = (parsedUsdtAmount * parsedLeverage) / currentPrice;
+    // For a LIMIT order, validate the limit price and size the position from it.
+    const isLimit = orderType === 'LIMIT';
+    const parsedLimitPrice = Number(limitPrice);
+    if (isLimit && (!Number.isFinite(parsedLimitPrice) || parsedLimitPrice <= 0)) {
+      setSubmitError('Enter a valid limit price.');
+      return;
+    }
+    const sizingPrice = isLimit ? parsedLimitPrice : currentPrice;
+
+    const rawQuantity = (parsedUsdtAmount * parsedLeverage) / sizingPrice;
     const normalizedQuantity = normalizeOrderQuantity(rawQuantity, selectedSymbol);
 
     if (!Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) {
@@ -558,25 +596,30 @@ export default function NewOrderPage() {
       return;
     }
 
-    const computedStopLossPrice = parsedStopLossUsdt === null
-      ? null
-      : computeTriggerPriceFromUsdt({
-        riskUsdt: parsedStopLossUsdt,
-        side,
-        quantity: normalizedQuantity,
-        markPrice: currentPrice,
-        type: 'sl',
-      });
+    // Resolve trigger prices: direct in price mode, else convert from USDT risk.
+    const computedStopLossPrice = isPriceMode
+      ? parsedStopLossPriceInput
+      : (parsedStopLossUsdt === null
+        ? null
+        : computeTriggerPriceFromUsdt({
+          riskUsdt: parsedStopLossUsdt,
+          side,
+          quantity: normalizedQuantity,
+          markPrice: currentPrice,
+          type: 'sl',
+        }));
 
-    const computedTakeProfitPrice = parsedTakeProfitUsdt === null
-      ? null
-      : computeTriggerPriceFromUsdt({
-        riskUsdt: parsedTakeProfitUsdt,
-        side,
-        quantity: normalizedQuantity,
-        markPrice: currentPrice,
-        type: 'tp',
-      });
+    const computedTakeProfitPrice = isPriceMode
+      ? parsedTakeProfitPriceInput
+      : (parsedTakeProfitUsdt === null
+        ? null
+        : computeTriggerPriceFromUsdt({
+          riskUsdt: parsedTakeProfitUsdt,
+          side,
+          quantity: normalizedQuantity,
+          markPrice: currentPrice,
+          type: 'tp',
+        }));
 
     if (parsedStopLossUsdt !== null && (!Number.isFinite(computedStopLossPrice) || computedStopLossPrice <= 0)) {
       setSubmitError('Stop loss USDT value is too large for this position size.');
@@ -586,6 +629,23 @@ export default function NewOrderPage() {
     if (parsedTakeProfitUsdt !== null && (!Number.isFinite(computedTakeProfitPrice) || computedTakeProfitPrice <= 0)) {
       setSubmitError('Target USDT value is too large for this position size.');
       return;
+    }
+
+    // Validate price-mode SL/TP are on the correct side of the entry price.
+    const entryRef = isLimit ? parsedLimitPrice : currentPrice;
+    if (isPriceMode && computedStopLossPrice !== null) {
+      const slWrong = side === 'BUY' ? computedStopLossPrice >= entryRef : computedStopLossPrice <= entryRef;
+      if (slWrong) {
+        setSubmitError(`Stop loss price must be ${side === 'BUY' ? 'below' : 'above'} entry (${entryRef}).`);
+        return;
+      }
+    }
+    if (isPriceMode && computedTakeProfitPrice !== null) {
+      const tpWrong = side === 'BUY' ? computedTakeProfitPrice <= entryRef : computedTakeProfitPrice >= entryRef;
+      if (tpWrong) {
+        setSubmitError(`Target price must be ${side === 'BUY' ? 'above' : 'below'} entry (${entryRef}).`);
+        return;
+      }
     }
 
     const pricePrecision = getSafePricePrecision(selectedSymbol);
@@ -608,6 +668,8 @@ export default function NewOrderPage() {
           side,
           quantity: normalizedQuantity,
           leverage: parsedLeverage,
+          orderType,
+          limitPrice: isLimit ? parsedLimitPrice : undefined,
           stopLossPrice: normalizedStopLossPrice,
           takeProfitPrice: normalizedTakeProfitPrice,
           pricePrecision: selectedSymbol?.pricePrecision,
@@ -793,37 +855,65 @@ export default function NewOrderPage() {
               </div>
 
               <div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Stop Loss (USDT)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="e.g. 50"
-                      value={stopLossUsdt}
-                      onChange={(e) => {
-                        setIsStopLossEdited(true);
-                        setStopLossUsdt(e.target.value);
-                      }}
-                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Target (USDT)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="e.g. 100"
-                      value={takeProfitUsdt}
-                      onChange={(e) => {
-                        setIsTargetEdited(true);
-                        setTakeProfitUsdt(e.target.value);
-                      }}
-                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white"
-                    />
+                {/* SL/Target input mode */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">Stop Loss / Target</span>
+                  <div className="flex gap-1 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
+                    <button type="button" onClick={() => setRiskMode('usdt')}
+                      className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                        riskMode === 'usdt' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                      }`}>USDT</button>
+                    <button type="button" onClick={() => setRiskMode('price')}
+                      className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                        riskMode === 'price' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                      }`}>Price</button>
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-1.5 mt-2">
+
+                {riskMode === 'usdt' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Stop Loss (USDT)</label>
+                      <input
+                        type="number" step="any" placeholder="e.g. 50"
+                        value={stopLossUsdt}
+                        onChange={(e) => { setIsStopLossEdited(true); setStopLossUsdt(e.target.value); }}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Target (USDT)</label>
+                      <input
+                        type="number" step="any" placeholder="e.g. 100"
+                        value={takeProfitUsdt}
+                        onChange={(e) => { setIsTargetEdited(true); setTakeProfitUsdt(e.target.value); }}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Stop Loss (Price)</label>
+                      <input
+                        type="number" step="any" placeholder="trigger price"
+                        value={stopLossPriceInput}
+                        onChange={(e) => setStopLossPriceInput(e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white tabular-nums"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Target (Price)</label>
+                      <input
+                        type="number" step="any" placeholder="trigger price"
+                        value={takeProfitPriceInput}
+                        onChange={(e) => setTakeProfitPriceInput(e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white tabular-nums"
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className={`grid grid-cols-4 gap-1.5 mt-2 ${riskMode === 'price' ? 'hidden' : ''}`}>
                   {[1, 2].map((pct) => (
                     <button
                       key={`sl-${pct}`}
@@ -940,6 +1030,64 @@ export default function NewOrderPage() {
                 </button>
               </div>
 
+              {/* Order type: Market vs Limit */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Order Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOrderType('MARKET')}
+                    className={`py-2 rounded-lg border font-semibold text-sm transition-colors ${
+                      orderType === 'MARKET'
+                        ? 'bg-blue-500/20 border-blue-500 text-blue-300'
+                        : 'bg-gray-900 border-gray-700 text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    Market
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderType('LIMIT')}
+                    className={`py-2 rounded-lg border font-semibold text-sm transition-colors ${
+                      orderType === 'LIMIT'
+                        ? 'bg-blue-500/20 border-blue-500 text-blue-300'
+                        : 'bg-gray-900 border-gray-700 text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    Limit
+                  </button>
+                </div>
+              </div>
+
+              {/* Limit price (only for LIMIT orders) */}
+              {orderType === 'LIMIT' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-gray-400">Limit Price</label>
+                    <button
+                      type="button"
+                      onClick={() => { setLimitPrice(String(currentPrice)); setIsLimitPriceEdited(false); }}
+                      className="text-[11px] text-blue-400 hover:text-blue-300"
+                      title="Use current market price"
+                    >
+                      Use market ({currentPrice > 0 ? currentPrice : '—'})
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={limitPrice}
+                    onChange={(e) => { setLimitPrice(e.target.value); setIsLimitPriceEdited(true); }}
+                    placeholder="Limit price"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 tabular-nums"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Order rests until price reaches your limit. SL/Target apply after it fills.
+                  </p>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={submitting || symbolsLoading}
@@ -949,7 +1097,9 @@ export default function NewOrderPage() {
                     : 'bg-red-600 hover:bg-red-500'
                 }`}
               >
-                {submitting ? 'Executing Order...' : `${side === 'BUY' ? 'Buy Execute' : 'Sell Execute'}`}
+                {submitting
+                  ? 'Executing Order...'
+                  : `${side === 'BUY' ? 'Buy' : 'Sell'} ${orderType === 'LIMIT' ? 'Limit' : 'Market'}`}
               </button>
 
               <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2">

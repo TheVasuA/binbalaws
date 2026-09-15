@@ -8,6 +8,7 @@ import {
   getFuturesRsi1hScan,
   setFuturesLeverage,
   placeFuturesMarketOrder,
+  placeFuturesLimitOrder,
   placeFuturesExitOrders,
   cancelFuturesExitOrders,
   closePosition,
@@ -200,6 +201,9 @@ export async function POST(request) {
       stopLossPrice,
       takeProfitPrice,
       includeHuge,
+      orderType,      // 'MARKET' (default) or 'LIMIT'
+      limitPrice,     // required when orderType === 'LIMIT'
+      pricePrecision, // symbol price precision for rounding the limit price
     } = body;
 
     if (action === 'openPosition') {
@@ -275,17 +279,39 @@ export async function POST(request) {
       } // end circuit-breaker (skipped for huge >= 20x orders)
 
       const leverageResult = await setFuturesLeverage(symbol, leverageValue);
-      const orderResult = await placeFuturesMarketOrder({
-        symbol,
-        side: normalizedSide,
-        quantity,
-      });
+
+      // Entry order: MARKET (fills now) or LIMIT (rests at limitPrice).
+      const normalizedOrderType = String(orderType || 'MARKET').toUpperCase();
+      const isLimitEntry = normalizedOrderType === 'LIMIT';
+
+      let orderResult;
+      if (isLimitEntry) {
+        const parsedLimitPrice = Number(limitPrice);
+        if (!Number.isFinite(parsedLimitPrice) || parsedLimitPrice <= 0) {
+          return NextResponse.json({ error: 'limitPrice must be a positive number for a LIMIT order' }, { status: 400 });
+        }
+        orderResult = await placeFuturesLimitOrder({
+          symbol,
+          side: normalizedSide,
+          quantity,
+          price: parsedLimitPrice,
+          pricePrecision,
+        });
+      } else {
+        orderResult = await placeFuturesMarketOrder({
+          symbol,
+          side: normalizedSide,
+          quantity,
+        });
+      }
 
       // Place real protective SL/TP orders on Binance so the exchange is the
-      // single source of truth for stop loss / target values.
+      // single source of truth. For LIMIT entries the position isn't open yet,
+      // so closePosition SL/TP would be rejected — we store the requested risk
+      // in the DB instead and skip placing exit orders until it fills.
       let riskOrders = null;
       let riskOrdersError = null;
-      if (parsedStopLossPrice !== null || parsedTakeProfitPrice !== null) {
+      if (!isLimitEntry && (parsedStopLossPrice !== null || parsedTakeProfitPrice !== null)) {
         try {
           riskOrders = await placeFuturesExitOrders({
             symbol,
@@ -297,6 +323,8 @@ export async function POST(request) {
           riskOrdersError = err.message;
           console.error('Failed to place SL/TP exit orders:', err.message);
         }
+      } else if (isLimitEntry && (parsedStopLossPrice !== null || parsedTakeProfitPrice !== null)) {
+        riskOrdersError = 'SL/TP will be set after the limit order fills.';
       }
 
       const savedOrder = await createFuturesOrderRecord({
@@ -386,7 +414,8 @@ export async function POST(request) {
         }, { status: 400 });
       }
 
-      const result = await closePosition(symbol, side, quantity);
+      // Optional limitPrice → reduce-only LIMIT exit; otherwise market close.
+      const result = await closePosition(symbol, side, quantity, limitPrice);
 
       await invalidateFuturesCaches();
 

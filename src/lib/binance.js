@@ -712,6 +712,42 @@ export async function placeFuturesMarketOrder({ symbol, side, quantity }) {
   });
 }
 
+// Place a futures LIMIT order (GTC) at a specified price.
+export async function placeFuturesLimitOrder({ symbol, side, quantity, price, pricePrecision = null }) {
+  const normalizedSide = String(side || '').toUpperCase();
+  const normalizedQuantity = Number(quantity);
+  const normalizedPrice = Number(price);
+
+  if (!symbol || !['BUY', 'SELL'].includes(normalizedSide)) {
+    throw new Error('Invalid symbol or side');
+  }
+  if (!Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) {
+    throw new Error('Quantity must be a positive number');
+  }
+  if (!Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
+    throw new Error('Limit price must be a positive number');
+  }
+
+  // Round the price to the symbol's precision so Binance accepts it.
+  let precision = pricePrecision;
+  if (precision === null || precision === undefined) {
+    precision = await getFuturesPricePrecision(symbol);
+  }
+  const priceStr = Number.isFinite(parseInt(precision, 10))
+    ? normalizedPrice.toFixed(Math.min(Math.max(parseInt(precision, 10), 0), 8))
+    : normalizedPrice.toString();
+
+  return futuresSignedPost('/fapi/v1/order', {
+    symbol: symbol.toUpperCase(),
+    side: normalizedSide,
+    type: 'LIMIT',
+    timeInForce: 'GTC',
+    quantity: normalizedQuantity.toString(),
+    price: priceStr,
+    newOrderRespType: 'RESULT',
+  });
+}
+
 // Simple in-memory cache of price precision per symbol (avoids refetching exchangeInfo).
 const _pricePrecisionCache = new Map();
 
@@ -1112,8 +1148,9 @@ export function calculateFuturesRiskMetrics(positions, account) {
   };
 }
 
-// Close a futures position with market order
-export async function closePosition(symbol, side, quantity) {
+// Close a futures position. Market by default; pass limitPrice to exit with a
+// reduce-only LIMIT order that rests at your chosen price (a "limit exit").
+export async function closePosition(symbol, side, quantity, limitPrice = null) {
   const apiKey = process.env.BINANCE_API_KEY?.trim();
   const apiSecret = process.env.BINANCE_API_SECRET?.trim();
   
@@ -1127,15 +1164,36 @@ export async function closePosition(symbol, side, quantity) {
   // LONG position -> SELL to close
   // SHORT position -> BUY to close
   const closeSide = side === 'LONG' ? 'SELL' : 'BUY';
-  
-  const params = {
-    symbol,
-    side: closeSide,
-    type: 'MARKET',
-    quantity: quantity.toString(),
-    reduceOnly: 'true',
-    timestamp,
-  };
+
+  const parsedLimit = Number(limitPrice);
+  const useLimit = Number.isFinite(parsedLimit) && parsedLimit > 0;
+
+  let params;
+  if (useLimit) {
+    const precision = await getFuturesPricePrecision(symbol);
+    const priceStr = Number.isFinite(parseInt(precision, 10))
+      ? parsedLimit.toFixed(Math.min(Math.max(parseInt(precision, 10), 0), 8))
+      : parsedLimit.toString();
+    params = {
+      symbol,
+      side: closeSide,
+      type: 'LIMIT',
+      timeInForce: 'GTC',
+      quantity: quantity.toString(),
+      price: priceStr,
+      reduceOnly: 'true',
+      timestamp,
+    };
+  } else {
+    params = {
+      symbol,
+      side: closeSide,
+      type: 'MARKET',
+      quantity: quantity.toString(),
+      reduceOnly: 'true',
+      timestamp,
+    };
+  }
   
   const queryString = new URLSearchParams(params).toString();
   const signature = createSignature(queryString, apiSecret);
