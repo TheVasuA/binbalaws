@@ -156,6 +156,15 @@ export default function NewOrderPage() {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [side, setSide] = useState('BUY');
   const [orderType, setOrderType] = useState('MARKET'); // 'MARKET' | 'LIMIT'
+
+  // Pre-select a symbol passed via ?symbol= (e.g. from the Markets "Trade" link).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get('symbol');
+    if (s) setSymbol(s.toUpperCase());
+  }, []);
+
   const [limitPrice, setLimitPrice] = useState('');
   const [isLimitPriceEdited, setIsLimitPriceEdited] = useState(false);
   const [usdtAmount, setUsdtAmount] = useState('100');
@@ -808,6 +817,19 @@ export default function NewOrderPage() {
                     </button>
                   ))}
                 </div>
+                {/* Max leverage — requests 125x; the server clamps it down to the
+                    symbol's real maximum so the order never fails. */}
+                <button
+                  type="button"
+                  onClick={() => setLeverage('125')}
+                  className={`mt-1.5 w-full py-1 rounded-md text-xs font-semibold border transition-colors ${
+                    String(leverage) === '125'
+                      ? 'border-yellow-500 text-yellow-300 bg-yellow-500/20'
+                      : 'border-yellow-600/50 text-yellow-400 bg-yellow-900/20 hover:bg-yellow-900/40'
+                  }`}
+                >
+                  ⚡ Max Leverage
+                </button>
               </div>
 
               <div>

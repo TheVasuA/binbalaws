@@ -668,7 +668,8 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                   </div>
                 </td>
                 <td className={`text-lg border-l border-gray-700 py-2 px-3 text-right font-bold font-medium font-mono text-shadow-2xs text-shadow-gray-600 ${getChangeColor(position.unrealizedProfit)}`}> 
-                  <div>₹{Math.round(Math.abs(Number(position.unrealizedProfit) * 100)).toLocaleString('en-IN')}</div>
+                  <div>{Number(position.unrealizedProfit) >= 0 ? '+' : '-'}${Math.abs(Number(position.unrealizedProfit)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div className="text-sm opacity-70">₹{Math.round(Math.abs(Number(position.unrealizedProfit) * 100)).toLocaleString('en-IN')}</div>
                   <div className="text-sm opacity-40">
                     {Number(position.roe).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                   </div>

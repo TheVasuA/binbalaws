@@ -684,10 +684,33 @@ export async function setFuturesLeverage(symbol, leverage = 30) {
     throw new Error('Invalid symbol or leverage');
   }
 
-  return futuresSignedPost('/fapi/v1/leverage', {
-    symbol: symbol.toUpperCase(),
-    leverage: leverageValue,
-  });
+  const upperSymbol = symbol.toUpperCase();
+
+  // Try the requested leverage. If Binance rejects it because it exceeds the
+  // symbol's maximum, step down through standard tiers until one is accepted —
+  // so every order uses the highest leverage the symbol actually allows.
+  const tiers = [125, 100, 75, 50, 25, 20, 15, 10, 5, 4, 3, 2, 1];
+  const candidates = [leverageValue, ...tiers.filter((t) => t < leverageValue)];
+
+  let lastError = null;
+  for (const lev of candidates) {
+    try {
+      const res = await futuresSignedPost('/fapi/v1/leverage', {
+        symbol: upperSymbol,
+        leverage: lev,
+      });
+      return res; // accepted
+    } catch (err) {
+      lastError = err;
+      const msg = String(err?.message || '');
+      // Only step down when the error is specifically "leverage too large".
+      if (/leverage.*too large|too large|not valid|exceed/i.test(msg)) {
+        continue;
+      }
+      throw err; // other errors (permissions, etc.) — don't mask
+    }
+  }
+  throw lastError || new Error('Failed to set leverage');
 }
 
 // Place a futures market order
