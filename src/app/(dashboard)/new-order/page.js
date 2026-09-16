@@ -46,6 +46,10 @@ const CHART_TIMEFRAMES = [
   { label: '3d', value: '3D' },
 ];
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes – prices come from WebSocket
+// Available balance must feel live for order sizing. The /account endpoint is
+// Redis-cached server-side (3s TTL) so many viewers still share one Binance
+// fetch — polling every 5s here is safe and stays rate-limit friendly.
+const BALANCE_REFRESH_MS = 5 * 1000;
 
 function normalizeOrderQuantity(rawQty, symbolInfo) {
   let quantity = Number(rawQty);
@@ -213,7 +217,7 @@ export default function NewOrderPage() {
     loading: accountLoading,
     error: accountError,
     refetch: refetchAccount,
-  } = useFetch('/api/futures?type=account', { refreshInterval: REFRESH_INTERVAL_MS });
+  } = useFetch('/api/futures?type=account', { refreshInterval: BALANCE_REFRESH_MS });
 
   const {
     data: priceData,
@@ -809,7 +813,13 @@ export default function NewOrderPage() {
               </div>
 
               <div className="flex items-center justify-between text-xm text-gray-400">
-                <span>Available</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2" title="Live balance — updates every 5s">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                  </span>
+                  Available
+                </span>
                 <span className="text-pink-400 font-medium">{formatCurrency(availableBalance || 0)}</span>
               </div>
 
