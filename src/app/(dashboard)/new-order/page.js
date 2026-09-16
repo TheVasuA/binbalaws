@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFetch, formatCurrency, formatNumber } from '@/lib/utils';
+import { TRADIFI_NAMES, TRADIFI_COMMODITY_NAMES } from '@/lib/tradfi';
 
 function TradingViewChart({ symbol, interval }) {
   const containerRef = useRef(null);
@@ -259,6 +260,41 @@ export default function NewOrderPage() {
   const shortlist = shortlistData || [];
   const rsiBelow30Rows = rsiScanData?.below30 || [];
   const rsiAbove70Rows = rsiScanData?.above70 || [];
+
+  // TradFi stock/ETF picks — built live from Binance's TRADIFI_PERPETUAL
+  // symbols (category === 'tradfi'). These are tokenized US stocks (AAPL,
+  // NVDA, TSLA…), Asian names, AI-lab proxies and ETFs, all tradable through
+  // the same futures order endpoint as crypto perps.
+  const stockPicks = useMemo(() => {
+    return (symbolsData || [])
+      .filter((s) => s.category === 'tradfi')
+      .map((s) => ({
+        symbol: s.symbol,
+        base: s.baseAsset,
+        name: TRADIFI_NAMES[s.baseAsset] || s.baseAsset,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [symbolsData]);
+
+  // Commodity picks — Binance TRADIFI commodities (gold, silver, crude, etc.)
+  // plus any legacy gold tokens (PAXG / XAUT) if present.
+  const commodityPicks = useMemo(() => {
+    const available = new Set((symbolsData || []).map((s) => s.symbol));
+    const fromExchange = (symbolsData || [])
+      .filter((s) => s.category === 'commodity')
+      .map((s) => ({
+        symbol: s.symbol,
+        base: s.baseAsset,
+        name: TRADIFI_COMMODITY_NAMES[s.baseAsset] || s.baseAsset,
+      }));
+
+    const legacyGold = [
+      { symbol: 'PAXGUSDT', base: 'PAXG', name: 'Gold (PAX Gold)' },
+      { symbol: 'XAUTUSDT', base: 'XAUT', name: 'Gold (Tether Gold)' },
+    ].filter((g) => available.has(g.symbol));
+
+    return [...fromExchange, ...legacyGold].sort((a, b) => a.name.localeCompare(b.name));
+  }, [symbolsData]);
 
   useEffect(() => {
     if (symbols.length === 0) return;
@@ -1192,6 +1228,61 @@ export default function NewOrderPage() {
 
         <section className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6">
           <h2 className="text-lg font-semibold text-white mb-3">Futures Coins List</h2>
+
+          {/* Commodities on Binance (gold, silver, crude, copper, …) */}
+          {commodityPicks.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[11px] text-gray-400 mb-1.5 uppercase tracking-wider">
+                Commodities on Binance ({commodityPicks.length})
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {commodityPicks.map((t) => (
+                  <button
+                    key={t.symbol}
+                    type="button"
+                    onClick={() => setSymbol(t.symbol)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      symbol === t.symbol
+                        ? 'border-yellow-500 bg-yellow-500/20 text-yellow-300'
+                        : 'border-yellow-600/40 bg-yellow-900/20 text-yellow-400 hover:bg-yellow-900/40'
+                    }`}
+                    title={t.symbol}
+                  >
+                    🥇 {t.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* US Stocks & TradFi on Binance (AAPL, NVDA, TSLA, SPY, QQQ, …) */}
+          {stockPicks.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[11px] text-gray-400 mb-1.5 uppercase tracking-wider">
+                US Stocks &amp; TradFi on Binance ({stockPicks.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+                {stockPicks.map((t) => (
+                  <button
+                    key={t.symbol}
+                    type="button"
+                    onClick={() => setSymbol(t.symbol)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                      symbol === t.symbol
+                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                        : 'border-emerald-600/40 bg-emerald-900/20 text-emerald-400 hover:bg-emerald-900/40'
+                    }`}
+                    title={`${t.name} · ${t.symbol}`}
+                  >
+                    📈 {t.base}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1.5">
+                Tokenized stocks trade as perpetual futures on Binance — same order flow as crypto.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
             <button

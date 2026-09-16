@@ -651,19 +651,40 @@ export async function getFuturesRsi1hScan(scanLimit = 280) {
   }
 }
 
-// Get all tradable perpetual futures symbols
+// Get all tradable futures symbols.
+// Binance lists two kinds of perpetuals:
+//   • PERPETUAL          → normal crypto perps (BTCUSDT, ETHUSDT, …)
+//   • TRADIFI_PERPETUAL  → tokenized TradFi: US stocks (AAPL, NVDA, TSLA…),
+//                          ETFs (SPY, QQQ), and commodities (XAU, XAG, CL…).
+// Both are tradable through the same fapi order endpoints, so we return both
+// and tag each with a `category` the UI can group by.
+const TRADIFI_COMMODITY_BASES = new Set([
+  'XAU', 'XAG', 'XPT', 'XPD', 'CL', 'NATGAS', 'COPPER', 'GDX', 'XLE', 'URNM', 'XBI',
+]);
+
+function categorizeSymbol(s) {
+  if (s.contractType === 'TRADIFI_PERPETUAL') {
+    return TRADIFI_COMMODITY_BASES.has(s.baseAsset) ? 'commodity' : 'tradfi';
+  }
+  return 'crypto';
+}
+
 export async function getFuturesSymbols() {
   try {
     const exchangeInfo = await futuresPublicRequest('/fapi/v1/exchangeInfo');
 
     return exchangeInfo.symbols
-      .filter(s => s.status === 'TRADING' && s.contractType === 'PERPETUAL')
+      .filter(s =>
+        s.status === 'TRADING' &&
+        (s.contractType === 'PERPETUAL' || s.contractType === 'TRADIFI_PERPETUAL'))
       .map(s => {
         const lotSizeFilter = s.filters.find(f => f.filterType === 'LOT_SIZE');
         return {
           symbol: s.symbol,
           baseAsset: s.baseAsset,
           quoteAsset: s.quoteAsset,
+          contractType: s.contractType,
+          category: categorizeSymbol(s),
           pricePrecision: s.pricePrecision,
           quantityPrecision: s.quantityPrecision,
           minQty: lotSizeFilter ? parseFloat(lotSizeFilter.minQty) : null,

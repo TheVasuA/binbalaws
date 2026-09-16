@@ -65,3 +65,47 @@ export const COMMODITIES = [
   { symbol: 'HG', name: 'Copper', unit: 'USD / lb', cat: 'Metals', binanceSymbol: null },
   { symbol: 'ZN', name: 'Zinc', unit: 'USD / tonne', cat: 'Metals', binanceSymbol: null },
 ];
+
+// Friendly display names for Binance TradFi (TRADIFI_PERPETUAL) base assets.
+// Keyed by baseAsset. Anything not listed falls back to its ticker symbol.
+export const TRADIFI_NAMES = {
+  // US mega-cap tech
+  AAPL: 'Apple', MSFT: 'Microsoft', NVDA: 'NVIDIA', GOOGL: 'Alphabet (Google)',
+  AMZN: 'Amazon', META: 'Meta Platforms', AVGO: 'Broadcom', ORCL: 'Oracle',
+  CRM: 'Salesforce', AMD: 'AMD', ADBE: 'Adobe', INTC: 'Intel', QCOM: 'Qualcomm',
+  MU: 'Micron', TXN: 'Texas Instruments', CSCO: 'Cisco', IBM: 'IBM', DELL: 'Dell',
+  PLTR: 'Palantir', SMCI: 'Super Micro', ARM: 'Arm Holdings', ASML: 'ASML',
+  TSM: 'TSMC', CRWD: 'CrowdStrike', PANW: 'Palo Alto Networks', SNOW: 'Snowflake',
+  NET: 'Cloudflare', DDOG: 'Datadog', SHOP: 'Shopify', UBER: 'Uber',
+  // Consumer / auto / other
+  TSLA: 'Tesla', WMT: 'Walmart', COST: 'Costco', HD: 'Home Depot', KO: 'Coca-Cola',
+  DIS: 'Walt Disney', CAT: 'Caterpillar', GME: 'GameStop', RIVN: 'Rivian',
+  DKNG: 'DraftKings', RDDT: 'Reddit', HIMS: 'Hims & Hers', WEN: "Wendy's",
+  EBAY: 'eBay', GPRO: 'GoPro', TTWO: 'Take-Two', ZM: 'Zoom', TEAM: 'Atlassian',
+  // Finance / crypto-adjacent
+  JPM: 'JPMorgan', GS: 'Goldman Sachs', V: 'Visa', PYPL: 'PayPal', SOFI: 'SoFi',
+  COIN: 'Coinbase', MSTR: 'MicroStrategy', HOOD: 'Robinhood', CRCL: 'Circle',
+  MARA: 'Marathon Digital', IREN: 'IREN', BMNR: 'Bitmine', NBIS: 'Nebius',
+  // Healthcare / pharma
+  LLY: 'Eli Lilly', MRK: 'Merck', MRNA: 'Moderna', NVO: 'Novo Nordisk',
+  // AI labs (tokenized proxies)
+  OPENAI: 'OpenAI', ANTHROPIC: 'Anthropic', ZHIPU: 'Zhipu AI', MINIMAX: 'MiniMax',
+  UNITREE: 'Unitree', // robotics
+  // China / Asia
+  BABA: 'Alibaba', PDD: 'PDD Holdings', TENCENT: 'Tencent', MEITUAN: 'Meituan',
+  BYD: 'BYD', SONY: 'Sony', SAMSUNG: 'Samsung', HYUNDAI: 'Hyundai',
+  NAVER: 'Naver', KUAISHOU: 'Kuaishou', POPMART: 'Pop Mart',
+  // ETFs / indices / leveraged
+  SPY: 'S&P 500 ETF', QQQ: 'Nasdaq-100 ETF', IWM: 'Russell 2000 ETF',
+  TQQQ: 'Nasdaq-100 3x', SQQQ: 'Nasdaq-100 -3x', SOXL: 'Semis 3x', SOXS: 'Semis -3x',
+  SMH: 'Semiconductor ETF', GDX: 'Gold Miners ETF', XLE: 'Energy ETF',
+  XBI: 'Biotech ETF', URNM: 'Uranium ETF', UVXY: 'Volatility ETF',
+  TSLL: 'Tesla 2x', NVDL: 'NVIDIA 2x', MVLL: 'MicroStrategy 2x',
+};
+
+// Friendly names for Binance TradFi commodity base assets.
+export const TRADIFI_COMMODITY_NAMES = {
+  XAU: 'Gold', XAG: 'Silver', XPT: 'Platinum', XPD: 'Palladium',
+  CL: 'Crude Oil (WTI)', NATGAS: 'Natural Gas', COPPER: 'Copper',
+  GDX: 'Gold Miners ETF', XLE: 'Energy ETF', URNM: 'Uranium ETF', XBI: 'Biotech ETF',
+};
