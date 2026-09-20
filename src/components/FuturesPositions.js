@@ -447,13 +447,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 onClick={() => editRiskSymbol === position.symbol ? cancelEditRisk() : openEditRisk(position)}
                 className="mt-1 w-full py-1 rounded-md text-xs border border-orange-600 text-orange-300 bg-orange-900/30 hover:bg-orange-800/50 transition-colors"
               >
-                {editRiskSymbol === position.symbol ? 'Cancel Edit' : 'Edit SL / Target'}
+                {editRiskSymbol === position.symbol ? 'Cancel Edit' : 'Edit Target / SL'}
               </button>
 
               {editRiskSymbol === position.symbol && (
                 <div className="mt-2 rounded-lg border border-orange-500/40 bg-gray-900 p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-400 font-semibold">Edit SL / Target</p>
+                    <p className="text-xs text-gray-400 font-semibold">Edit Target / SL</p>
                     <div className="flex gap-1 bg-gray-800 border border-gray-700 rounded-lg p-0.5">
                       <button type="button" onClick={() => setEditRiskMode('usdt')}
                         className={`px-2 py-0.5 rounded text-[10px] font-medium ${editRiskMode === 'usdt' ? 'bg-orange-600 text-white' : 'text-gray-400'}`}>USDT</button>
@@ -464,15 +464,6 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                   {editRiskMode === 'usdt' ? (
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[10px] text-red-400 block mb-0.5">Stop Loss (USDT)</label>
-                        <input
-                          type="number" min="0" step="0.01" placeholder="e.g. 50"
-                          value={editSLUsdt}
-                          onChange={(e) => setEditSLUsdt(e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500"
-                        />
-                      </div>
-                      <div>
                         <label className="text-[10px] text-green-400 block mb-0.5">Target (USDT)</label>
                         <input
                           type="number" min="0" step="0.01" placeholder="e.g. 100"
@@ -481,18 +472,18 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                           className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-green-500"
                         />
                       </div>
+                      <div>
+                        <label className="text-[10px] text-red-400 block mb-0.5">Stop Loss (USDT)</label>
+                        <input
+                          type="number" min="0" step="0.01" placeholder="e.g. 50"
+                          value={editSLUsdt}
+                          onChange={(e) => setEditSLUsdt(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500"
+                        />
+                      </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-red-400 block mb-0.5">Stop Loss (Price)</label>
-                        <input
-                          type="number" min="0" step="any" placeholder="trigger price"
-                          value={editSLPrice}
-                          onChange={(e) => setEditSLPrice(e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500 tabular-nums"
-                        />
-                      </div>
                       <div>
                         <label className="text-[10px] text-green-400 block mb-0.5">Target (Price)</label>
                         <input
@@ -502,20 +493,29 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                           className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-green-500 tabular-nums"
                         />
                       </div>
+                      <div>
+                        <label className="text-[10px] text-red-400 block mb-0.5">Stop Loss (Price)</label>
+                        <input
+                          type="number" min="0" step="any" placeholder="trigger price"
+                          value={editSLPrice}
+                          onChange={(e) => setEditSLPrice(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500 tabular-nums"
+                        />
+                      </div>
                     </div>
-                  )}
-                  {editRiskMode === 'usdt' && editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
-                    <p className="text-[10px] text-red-300">
-                      SL Price ≈ {position.side === 'LONG'
-                        ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
-                        : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
-                    </p>
                   )}
                   {editRiskMode === 'usdt' && editTPUsdt && !isNaN(parseFloat(editTPUsdt)) && parseFloat(editTPUsdt) > 0 && (
                     <p className="text-[10px] text-green-300">
                       Target Price ≈ {position.side === 'LONG'
                         ? (parseFloat(position.entryPrice) + parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
                         : (parseFloat(position.entryPrice) - parseFloat(editTPUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                    </p>
+                  )}
+                  {editRiskMode === 'usdt' && editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
+                    <p className="text-[10px] text-red-300">
+                      SL Price ≈ {position.side === 'LONG'
+                        ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
+                        : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
                     </p>
                   )}
                   {editRiskError && <p className="text-xs text-red-400">{editRiskError}</p>}
@@ -723,7 +723,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 <tr className="border-b border-orange-500/30 bg-orange-950/40">
                   <td colSpan="10" className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-xs text-orange-300 font-semibold whitespace-nowrap">Edit SL / Target</span>
+                      <span className="text-xs text-orange-300 font-semibold whitespace-nowrap">Edit Target / SL</span>
                       <div className="flex gap-1 bg-gray-800 border border-gray-700 rounded-lg p-0.5">
                         <button type="button" onClick={() => setEditRiskMode('usdt')}
                           className={`px-2 py-0.5 rounded text-[10px] font-medium ${editRiskMode === 'usdt' ? 'bg-orange-600 text-white' : 'text-gray-400'}`}>USDT</button>
@@ -732,22 +732,6 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                       </div>
                       {editRiskMode === 'usdt' ? (
                         <>
-                          <div className="flex items-center gap-1.5">
-                            <label className="text-[10px] text-red-400">SL:</label>
-                            <input
-                              type="number" min="0" step="0.01" placeholder="USDT"
-                              value={editSLUsdt}
-                              onChange={(e) => setEditSLUsdt(e.target.value)}
-                              className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500"
-                            />
-                            {editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
-                              <span className="text-[10px] text-red-300">
-                                ≈ {position.side === 'LONG'
-                                  ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
-                                  : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
-                              </span>
-                            )}
-                          </div>
                           <div className="flex items-center gap-1.5">
                             <label className="text-[10px] text-green-400">Target:</label>
                             <input
@@ -764,18 +748,25 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                               </span>
                             )}
                           </div>
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[10px] text-red-400">SL:</label>
+                            <input
+                              type="number" min="0" step="0.01" placeholder="USDT"
+                              value={editSLUsdt}
+                              onChange={(e) => setEditSLUsdt(e.target.value)}
+                              className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500"
+                            />
+                            {editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
+                              <span className="text-[10px] text-red-300">
+                                ≈ {position.side === 'LONG'
+                                  ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
+                                  : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                              </span>
+                            )}
+                          </div>
                         </>
                       ) : (
                         <>
-                          <div className="flex items-center gap-1.5">
-                            <label className="text-[10px] text-red-400">SL price:</label>
-                            <input
-                              type="number" min="0" step="any" placeholder="price"
-                              value={editSLPrice}
-                              onChange={(e) => setEditSLPrice(e.target.value)}
-                              className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500 tabular-nums"
-                            />
-                          </div>
                           <div className="flex items-center gap-1.5">
                             <label className="text-[10px] text-green-400">Target price:</label>
                             <input
@@ -783,6 +774,15 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                               value={editTPPrice}
                               onChange={(e) => setEditTPPrice(e.target.value)}
                               className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-green-500 tabular-nums"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[10px] text-red-400">SL price:</label>
+                            <input
+                              type="number" min="0" step="any" placeholder="price"
+                              value={editSLPrice}
+                              onChange={(e) => setEditSLPrice(e.target.value)}
+                              className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500 tabular-nums"
                             />
                           </div>
                           <span className="text-[10px] text-gray-500">Entry {position.entryPrice}</span>

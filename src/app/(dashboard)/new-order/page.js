@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFetch, formatCurrency, formatNumber } from '@/lib/utils';
-import { TRADIFI_NAMES, TRADIFI_COMMODITY_NAMES } from '@/lib/tradfi';
+import { TRADIFI_NAMES } from '@/lib/tradfi';
 
 function TradingViewChart({ symbol, interval }) {
   const containerRef = useRef(null);
@@ -157,6 +157,8 @@ function buildCompoundMilestoneSummary({
 
 export default function NewOrderPage() {
   const [search, setSearch] = useState('');
+  // Asset-class tab for the coins list: 'crypto' | 'stocks' | 'commodities'.
+  const [assetClass, setAssetClass] = useState('crypto');
   const [coinsTab, setCoinsTab] = useState('threeDay');
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [side, setSide] = useState('BUY');
@@ -173,7 +175,7 @@ export default function NewOrderPage() {
   const [limitPrice, setLimitPrice] = useState('');
   const [isLimitPriceEdited, setIsLimitPriceEdited] = useState(false);
   const [usdtAmount, setUsdtAmount] = useState('100');
-  const [leverage, setLeverage] = useState(15);
+  const [leverage, setLeverage] = useState(20);
   const [stopLossUsdt, setStopLossUsdt] = useState('');
   const [isStopLossEdited, setIsStopLossEdited] = useState(false);
   const [takeProfitUsdt, setTakeProfitUsdt] = useState('');
@@ -268,37 +270,9 @@ export default function NewOrderPage() {
   // TradFi stock/ETF picks — built live from Binance's TRADIFI_PERPETUAL
   // symbols (category === 'tradfi'). These are tokenized US stocks (AAPL,
   // NVDA, TSLA…), Asian names, AI-lab proxies and ETFs, all tradable through
-  // the same futures order endpoint as crypto perps.
-  const stockPicks = useMemo(() => {
-    return (symbolsData || [])
-      .filter((s) => s.category === 'tradfi')
-      .map((s) => ({
-        symbol: s.symbol,
-        base: s.baseAsset,
-        name: TRADIFI_NAMES[s.baseAsset] || s.baseAsset,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [symbolsData]);
-
-  // Commodity picks — Binance TRADIFI commodities (gold, silver, crude, etc.)
-  // plus any legacy gold tokens (PAXG / XAUT) if present.
-  const commodityPicks = useMemo(() => {
-    const available = new Set((symbolsData || []).map((s) => s.symbol));
-    const fromExchange = (symbolsData || [])
-      .filter((s) => s.category === 'commodity')
-      .map((s) => ({
-        symbol: s.symbol,
-        base: s.baseAsset,
-        name: TRADIFI_COMMODITY_NAMES[s.baseAsset] || s.baseAsset,
-      }));
-
-    const legacyGold = [
-      { symbol: 'PAXGUSDT', base: 'PAXG', name: 'Gold (PAX Gold)' },
-      { symbol: 'XAUTUSDT', base: 'XAUT', name: 'Gold (Tether Gold)' },
-    ].filter((g) => available.has(g.symbol));
-
-    return [...fromExchange, ...legacyGold].sort((a, b) => a.name.localeCompare(b.name));
-  }, [symbolsData]);
+  // the same futures order endpoint as crypto perps. Stock/commodity picks are
+  // now surfaced via the Crypto/US Stocks/Commodities asset-class tabs below,
+  // driven directly from the live symbol list + category.
 
   useEffect(() => {
     if (symbols.length === 0) return;
@@ -310,16 +284,25 @@ export default function NewOrderPage() {
     }
   }, [symbols, symbol]);
 
+  // Symbols for the currently selected asset-class tab.
+  const assetClassSymbols = useMemo(() => {
+    if (assetClass === 'stocks') return symbols.filter((s) => s.category === 'tradfi');
+    if (assetClass === 'commodities') return symbols.filter((s) => s.category === 'commodity');
+    // Default: crypto (treat anything not tagged tradfi/commodity as crypto).
+    return symbols.filter((s) => !s.category || s.category === 'crypto');
+  }, [assetClass, symbols]);
+
   const filteredSymbols = useMemo(() => {
     const keyword = search.trim().toUpperCase();
-    if (!keyword) return symbols;
+    if (!keyword) return assetClassSymbols;
 
-    return symbols.filter(item => (
+    return assetClassSymbols.filter(item => (
       item.symbol.includes(keyword) ||
       item.baseAsset.includes(keyword) ||
+      (TRADIFI_NAMES[item.baseAsset] || '').toUpperCase().includes(keyword) ||
       item.quoteAsset.includes(keyword)
     ));
-  }, [search, symbols]);
+  }, [search, assetClassSymbols]);
 
   const selectedSymbol = useMemo(
     () => symbols.find(item => item.symbol === symbol),
@@ -338,18 +321,23 @@ export default function NewOrderPage() {
         symbol: item.symbol,
         baseAsset: item.baseAsset,
         quoteAsset: item.quoteAsset,
+        displayName: TRADIFI_NAMES[item.baseAsset] || null,
         change3dPercent: shortlistMap.get(item.symbol),
       }))
       .sort((a, b) => {
+        // Stocks & commodities: alphabetical by symbol. Crypto: 3D movers first.
+        if (assetClass !== 'crypto') return a.symbol.localeCompare(b.symbol);
         const av = Number.isFinite(a.change3dPercent) ? a.change3dPercent : -Infinity;
         const bv = Number.isFinite(b.change3dPercent) ? b.change3dPercent : -Infinity;
         if (bv !== av) return bv - av;
         return a.symbol.localeCompare(b.symbol);
       });
-  }, [search, filteredSymbols, shortlist, shortlistMap]);
+  }, [assetClass, filteredSymbols, shortlistMap]);
 
   const activeCoinRows = useMemo(() => {
-    if (coinsTab === 'threeDay') {
+    // RSI strategy scans apply to crypto only. Stocks/commodities and the
+    // crypto "3D Rank" tab all use the filtered symbol list.
+    if (assetClass !== 'crypto' || coinsTab === 'threeDay') {
       return coinsListRows;
     }
 
@@ -362,14 +350,14 @@ export default function NewOrderPage() {
       item.baseAsset.includes(keyword) ||
       item.quoteAsset.includes(keyword)
     ));
-  }, [coinsTab, coinsListRows, rsiBelow30Rows, rsiAbove70Rows, search]);
+  }, [assetClass, coinsTab, coinsListRows, rsiBelow30Rows, rsiAbove70Rows, search]);
 
   const activeTabBaseCount = useMemo(() => {
-    if (coinsTab === 'threeDay') return symbols.length;
+    if (assetClass !== 'crypto' || coinsTab === 'threeDay') return assetClassSymbols.length;
     return coinsTab === 'rsiBelow30' ? rsiBelow30Rows.length : rsiAbove70Rows.length;
-  }, [coinsTab, symbols.length, rsiBelow30Rows.length, rsiAbove70Rows.length]);
+  }, [assetClass, coinsTab, assetClassSymbols.length, rsiBelow30Rows.length, rsiAbove70Rows.length]);
 
-  const coinsListLoading = coinsTab === 'threeDay'
+  const coinsListLoading = (assetClass !== 'crypto' || coinsTab === 'threeDay')
     ? (symbolsLoading || shortlistLoading)
     : rsiScanLoading;
 
@@ -454,21 +442,27 @@ export default function NewOrderPage() {
     return Math.abs(milestoneTargetDisplayUsdt - compoundMilestoneTargetUsdt) > 0.01;
   }, [milestoneTargetDisplayUsdt, compoundMilestoneTargetUsdt]);
 
+  // Default risk as a % of position notional (usdtAmount × leverage):
+  // Target = 5% of notional, Stop Loss = 10% of notional.
+  const defaultTakeProfitUsdt = useMemo(() => {
+    if (!Number.isFinite(notionalValue) || notionalValue <= 0) return null;
+    return notionalValue * 0.05;
+  }, [notionalValue]);
+
   const defaultStopLossUsdt = useMemo(() => {
-    const walletBalance = Number(accountData?.totalWalletBalance ?? accountData?.availableBalance ?? 0);
-    if (!Number.isFinite(walletBalance) || walletBalance <= 0) return null;
-    return walletBalance * 0.05;
-  }, [accountData?.totalWalletBalance, accountData?.availableBalance]);
+    if (!Number.isFinite(notionalValue) || notionalValue <= 0) return null;
+    return notionalValue * 0.10;
+  }, [notionalValue]);
 
   useEffect(() => {
     if (isTargetEdited) return;
-    if (!Number.isFinite(compoundMilestoneTargetUsdt) || compoundMilestoneTargetUsdt <= 0) return;
+    if (!Number.isFinite(defaultTakeProfitUsdt) || defaultTakeProfitUsdt <= 0) return;
 
-    const defaultTarget = compoundMilestoneTargetUsdt.toFixed(2);
+    const defaultTarget = defaultTakeProfitUsdt.toFixed(2);
     if (takeProfitUsdt !== defaultTarget) {
       setTakeProfitUsdt(defaultTarget);
     }
-  }, [compoundMilestoneTargetUsdt, isTargetEdited, takeProfitUsdt]);
+  }, [defaultTakeProfitUsdt, isTargetEdited, takeProfitUsdt]);
 
   useEffect(() => {
     if (isStopLossEdited) return;
@@ -925,7 +919,7 @@ export default function NewOrderPage() {
               <div>
                 {/* SL/Target input mode */}
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">Stop Loss / Target</span>
+                  <span className="text-xs text-gray-400">Target / Stop Loss</span>
                   <div className="flex gap-1 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
                     <button type="button" onClick={() => setRiskMode('usdt')}
                       className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
@@ -941,15 +935,6 @@ export default function NewOrderPage() {
                 {riskMode === 'usdt' ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Stop Loss (USDT)</label>
-                      <input
-                        type="number" step="any" placeholder="e.g. 50"
-                        value={stopLossUsdt}
-                        onChange={(e) => { setIsStopLossEdited(true); setStopLossUsdt(e.target.value); }}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white"
-                      />
-                    </div>
-                    <div>
                       <label className="block text-xs text-gray-400 mb-1">Target (USDT)</label>
                       <input
                         type="number" step="any" placeholder="e.g. 100"
@@ -958,18 +943,18 @@ export default function NewOrderPage() {
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Stop Loss (USDT)</label>
+                      <input
+                        type="number" step="any" placeholder="e.g. 50"
+                        value={stopLossUsdt}
+                        onChange={(e) => { setIsStopLossEdited(true); setStopLossUsdt(e.target.value); }}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Stop Loss (Price)</label>
-                      <input
-                        type="number" step="any" placeholder="trigger price"
-                        value={stopLossPriceInput}
-                        onChange={(e) => setStopLossPriceInput(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white tabular-nums"
-                      />
-                    </div>
                     <div>
                       <label className="block text-xs text-gray-400 mb-1">Target (Price)</label>
                       <input
@@ -979,19 +964,18 @@ export default function NewOrderPage() {
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white tabular-nums"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Stop Loss (Price)</label>
+                      <input
+                        type="number" step="any" placeholder="trigger price"
+                        value={stopLossPriceInput}
+                        onChange={(e) => setStopLossPriceInput(e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white tabular-nums"
+                      />
+                    </div>
                   </div>
                 )}
                 <div className={`grid grid-cols-4 gap-1.5 mt-2 ${riskMode === 'price' ? 'hidden' : ''}`}>
-                  {[1, 2].map((pct) => (
-                    <button
-                      key={`sl-${pct}`}
-                      type="button"
-                      onClick={() => setRiskUsdtByPercent('sl', pct)}
-                      className="py-1 rounded-md text-xs border border-gray-700 text-yellow-300 bg-gray-900 hover:bg-gray-800"
-                    >
-                      SL {pct}%
-                    </button>
-                  ))}
                   {[1, 2].map((pct) => (
                     <button
                       key={`tp-${pct}`}
@@ -1002,13 +986,23 @@ export default function NewOrderPage() {
                       TP {pct}%
                     </button>
                   ))}
+                  {[1, 2].map((pct) => (
+                    <button
+                      key={`sl-${pct}`}
+                      type="button"
+                      onClick={() => setRiskUsdtByPercent('sl', pct)}
+                      className="py-1 rounded-md text-xs border border-gray-700 text-yellow-300 bg-gray-900 hover:bg-gray-800"
+                    >
+                      SL {pct}%
+                    </button>
+                  ))}
                 </div>
                 <div className="text-[11px] text-gray-500 mt-1 space-y-1">
                   {(stopLossUsdt.trim() !== '' || takeProfitUsdt.trim() !== '') && (
                     <p>
-                      SL trigger: <span className="text-yellow-300">{formatTriggerPrice(stopLossTriggerPreview)}</span>
-                      {' | '}
                       TP trigger: <span className="text-green-300">{formatTriggerPrice(takeProfitTriggerPreview)}</span>
+                      {' | '}
+                      SL trigger: <span className="text-yellow-300">{formatTriggerPrice(stopLossTriggerPreview)}</span>
                     </p>
                   )}
                 </div>
@@ -1239,119 +1233,109 @@ export default function NewOrderPage() {
         <section className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6">
           <h2 className="text-lg font-semibold text-white mb-3">Futures Coins List</h2>
 
-          {/* Commodities on Binance (gold, silver, crude, copper, …) */}
-          {commodityPicks.length > 0 && (
-            <div className="mb-3">
-              <p className="text-[11px] text-gray-400 mb-1.5 uppercase tracking-wider">
-                Commodities on Binance ({commodityPicks.length})
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {commodityPicks.map((t) => (
-                  <button
-                    key={t.symbol}
-                    type="button"
-                    onClick={() => setSymbol(t.symbol)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                      symbol === t.symbol
-                        ? 'border-yellow-500 bg-yellow-500/20 text-yellow-300'
-                        : 'border-yellow-600/40 bg-yellow-900/20 text-yellow-400 hover:bg-yellow-900/40'
-                    }`}
-                    title={t.symbol}
-                  >
-                    🥇 {t.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* US Stocks & TradFi on Binance (AAPL, NVDA, TSLA, SPY, QQQ, …) */}
-          {stockPicks.length > 0 && (
-            <div className="mb-3">
-              <p className="text-[11px] text-gray-400 mb-1.5 uppercase tracking-wider">
-                US Stocks &amp; TradFi on Binance ({stockPicks.length})
-              </p>
-              <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
-                {stockPicks.map((t) => (
-                  <button
-                    key={t.symbol}
-                    type="button"
-                    onClick={() => setSymbol(t.symbol)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
-                      symbol === t.symbol
-                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                        : 'border-emerald-600/40 bg-emerald-900/20 text-emerald-400 hover:bg-emerald-900/40'
-                    }`}
-                    title={`${t.name} · ${t.symbol}`}
-                  >
-                    📈 {t.base}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-gray-500 mt-1.5">
-                Tokenized stocks trade as perpetual futures on Binance — same order flow as crypto.
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-            <button
-              type="button"
-              onClick={() => setCoinsTab('threeDay')}
-              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                coinsTab === 'threeDay'
-                  ? 'border-blue-500 bg-blue-500/20 text-blue-300'
-                  : 'border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
-              }`}
-            >
-              3D Rank
-            </button>
-            <button
-              type="button"
-              onClick={() => setCoinsTab('rsiBelow30')}
-              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                coinsTab === 'rsiBelow30'
-                  ? 'border-yellow-500 bg-yellow-500/20 text-yellow-300'
-                  : 'border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
-              }`}
-            >
-              1H RSI Below 30
-            </button>
-            <button
-              type="button"
-              onClick={() => setCoinsTab('rsiAbove70')}
-              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                coinsTab === 'rsiAbove70'
-                  ? 'border-orange-500 bg-orange-500/20 text-orange-300'
-                  : 'border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
-              }`}
-            >
-              1H RSI Above 70
-            </button>
+          {/* Asset-class tabs: Crypto (default) · US Stocks · Commodities */}
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {[
+              { id: 'crypto', label: '🪙 Crypto', color: 'blue' },
+              { id: 'stocks', label: '📈 US Stocks', color: 'emerald' },
+              { id: 'commodities', label: '🥇 Commodities', color: 'amber' },
+            ].map((t) => {
+              const active = assetClass === t.id;
+              const activeCls = {
+                blue: 'border-blue-500 bg-blue-500/20 text-blue-300',
+                emerald: 'border-emerald-500 bg-emerald-500/20 text-emerald-300',
+                amber: 'border-amber-500 bg-amber-500/20 text-amber-300',
+              }[t.color];
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { setAssetClass(t.id); setSearch(''); }}
+                  className={`rounded-lg border px-2 py-2 text-xs font-semibold transition-colors ${
+                    active ? activeCls : 'border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
 
+          {/* Crypto strategy sub-tabs (only for the Crypto asset class) */}
+          {assetClass === 'crypto' && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setCoinsTab('threeDay')}
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                  coinsTab === 'threeDay'
+                    ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                    : 'border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                3D Rank
+              </button>
+              <button
+                type="button"
+                onClick={() => setCoinsTab('rsiBelow30')}
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                  coinsTab === 'rsiBelow30'
+                    ? 'border-yellow-500 bg-yellow-500/20 text-yellow-300'
+                    : 'border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                1H RSI Below 30
+              </button>
+              <button
+                type="button"
+                onClick={() => setCoinsTab('rsiAbove70')}
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                  coinsTab === 'rsiAbove70'
+                    ? 'border-orange-500 bg-orange-500/20 text-orange-300'
+                    : 'border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                1H RSI Above 70
+              </button>
+            </div>
+          )}
+
           <p className="text-xs text-gray-400 mb-3">
-            {coinsTab === 'threeDay'
-              ? '3-day percentage ranking (positive to negative)'
-              : coinsTab === 'rsiBelow30'
-                ? 'Strategy scan: 1-hour RSI below 30, ranked by strongest oversold signal.'
-                : 'Strategy scan: 1-hour RSI above 70, ranked by strongest overbought signal.'}
+            {assetClass === 'stocks'
+              ? 'Tokenized US stocks & ETFs — trade as perpetual futures, same flow as crypto.'
+              : assetClass === 'commodities'
+                ? 'Commodities on Binance: gold, silver, crude, natural gas, copper and more.'
+                : coinsTab === 'threeDay'
+                  ? '3-day percentage ranking (positive to negative)'
+                  : coinsTab === 'rsiBelow30'
+                    ? 'Strategy scan: 1-hour RSI below 30, ranked by strongest oversold signal.'
+                    : 'Strategy scan: 1-hour RSI above 70, ranked by strongest overbought signal.'}
           </p>
 
           <input
             type="text"
-            placeholder={coinsTab === 'threeDay' ? 'Search symbol or coin...' : 'Search RSI scan results...'}
+            placeholder={
+              assetClass === 'stocks'
+                ? 'Search stock (AAPL, NVDA, name...)'
+                : assetClass === 'commodities'
+                  ? 'Search commodity...'
+                  : coinsTab === 'threeDay'
+                    ? 'Search symbol or coin...'
+                    : 'Search RSI scan results...'
+            }
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white mb-3"
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white mb-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           />
 
           <div className="text-xs text-gray-400 mb-2">
             {search.trim()
               ? `Search results: ${activeCoinRows.length} / ${activeTabBaseCount}`
-              : coinsTab === 'threeDay'
-                ? `All symbols: ${coinsListRows.length} (ranked by 3-day positive movers first)`
-                : `RSI matches: ${activeTabBaseCount} (scan universe: ${rsiScanData?.scannedCount || 0} symbols)`}
+              : assetClass !== 'crypto'
+                ? `${assetClass === 'stocks' ? 'Stocks' : 'Commodities'}: ${coinsListRows.length}`
+                : coinsTab === 'threeDay'
+                  ? `All symbols: ${coinsListRows.length} (ranked by 3-day positive movers first)`
+                  : `RSI matches: ${activeTabBaseCount} (scan universe: ${rsiScanData?.scannedCount || 0} symbols)`}
           </div>
 
           {symbolsError && (
@@ -1396,9 +1380,14 @@ export default function NewOrderPage() {
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-xs text-gray-500 w-6">#{index + 1}</span>
                     <span className="text-white font-medium truncate">{item.symbol}</span>
+                    {item.displayName && (
+                      <span className="text-xs text-gray-400 truncate">{item.displayName}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {coinsTab === 'threeDay' ? (
+                    {assetClass !== 'crypto' ? (
+                      <span className="text-xs font-semibold text-gray-400">Trade →</span>
+                    ) : coinsTab === 'threeDay' ? (
                       <span className={`text-xs font-semibold ${
                         Number.isFinite(item.change3dPercent) && item.change3dPercent > 0
                           ? 'text-green-400'
