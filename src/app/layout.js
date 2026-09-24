@@ -26,7 +26,7 @@ export default function RootLayout({ children }) {
         {/* Apply saved theme before paint to avoid a flash of the default theme. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('app_theme');if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}`,
+            __html: `try{var t=localStorage.getItem('app_theme')||'midnight';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','midnight');}`,
           }}
         />
       </head>

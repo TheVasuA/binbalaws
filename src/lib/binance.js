@@ -651,6 +651,67 @@ export async function getFuturesRsi1hScan(scanLimit = 280) {
   }
 }
 
+// Today's top futures gainers: USDT perpetuals ranked by 24h % change,
+// restricted to liquid (high-volume) coins. Uses a single 24hr ticker call
+// (cheap — no per-symbol klines) so it's safe to poll. Returns an array of
+// { symbol, baseAsset, lastPrice, change24hPercent, quoteVolume } sorted by
+// change descending.
+let futuresTopGainersCache = null;
+let futuresTopGainersUpdatedAt = 0;
+const FUTURES_TOP_GAINERS_CACHE_MS = 60 * 1000; // 1 minute
+
+export async function getFuturesTopGainers({ limit = 60, minQuoteVolume = 20_000_000 } = {}) {
+  try {
+    const now = Date.now();
+    if (
+      futuresTopGainersCache &&
+      now - futuresTopGainersUpdatedAt < FUTURES_TOP_GAINERS_CACHE_MS
+    ) {
+      return futuresTopGainersCache.slice(0, limit);
+    }
+
+    const [exchangeInfo, tickers24h] = await Promise.all([
+      futuresPublicRequest('/fapi/v1/exchangeInfo'),
+      futuresPublicRequest('/fapi/v1/ticker/24hr'),
+    ]);
+
+    // Only TRADING USDT perpetuals.
+    const symbolsMap = new Map(
+      exchangeInfo.symbols
+        .filter(s => s.status === 'TRADING' && s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+        .map(s => [s.symbol, s]),
+    );
+
+    const minVol = Number(minQuoteVolume) || 0;
+
+    const ranked = tickers24h
+      .filter(t => symbolsMap.has(t.symbol) && parseFloat(t.quoteVolume) >= minVol)
+      .map(t => {
+        const info = symbolsMap.get(t.symbol);
+        return {
+          symbol: t.symbol,
+          baseAsset: info.baseAsset,
+          quoteAsset: info.quoteAsset,
+          lastPrice: parseFloat(t.lastPrice),
+          change24hPercent: Number(parseFloat(t.priceChangePercent).toFixed(2)),
+          quoteVolume: parseFloat(t.quoteVolume),
+        };
+      })
+      // Top gainers first (highest 24h % change), tie-break by volume.
+      .sort((a, b) => {
+        if (b.change24hPercent !== a.change24hPercent) return b.change24hPercent - a.change24hPercent;
+        return b.quoteVolume - a.quoteVolume;
+      });
+
+    futuresTopGainersCache = ranked;
+    futuresTopGainersUpdatedAt = now;
+    return ranked.slice(0, limit);
+  } catch (error) {
+    console.error('Error fetching futures top gainers:', error.message);
+    throw error;
+  }
+}
+
 // Get all tradable futures symbols.
 // Binance lists two kinds of perpetuals:
 //   • PERPETUAL          → normal crypto perps (BTCUSDT, ETHUSDT, …)
@@ -754,6 +815,84 @@ export async function placeFuturesMarketOrder({ symbol, side, quantity }) {
     quantity: normalizedQuantity.toString(),
     newOrderRespType: 'RESULT',
   });
+}
+
+// ── Bulk scalp entry ────────────────────────────────────────────────────
+// Open several futures positions in one shot. Each leg sets leverage then
+// fires a MARKET order. Legs are independent: one failure does not abort the
+// rest, and every leg's outcome is reported back so the UI can show partial
+// fills. `legs` is an array of { symbol, side, quantity, leverage }.
+export async function placeBulkFuturesMarketOrders(legs = []) {
+  if (!Array.isArray(legs) || legs.length === 0) {
+    throw new Error('No bulk order legs provided');
+  }
+
+  const results = await Promise.all(
+    legs.map(async (leg) => {
+      const symbol = String(leg?.symbol || '').toUpperCase();
+      const normalizedSide = String(leg?.side || '').toUpperCase() === 'LONG'
+        ? 'BUY'
+        : String(leg?.side || '').toUpperCase() === 'SHORT'
+          ? 'SELL'
+          : String(leg?.side || '').toUpperCase();
+      const quantity = Number(leg?.quantity);
+      const leverage = Number.isFinite(parseInt(leg?.leverage, 10)) ? parseInt(leg.leverage, 10) : 10;
+
+      if (!symbol || !['BUY', 'SELL'].includes(normalizedSide)) {
+        return { symbol, ok: false, error: 'Invalid symbol or side' };
+      }
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return { symbol, ok: false, error: 'Quantity must be a positive number' };
+      }
+
+      try {
+        const leverageResult = await setFuturesLeverage(symbol, leverage);
+        const order = await placeFuturesMarketOrder({ symbol, side: normalizedSide, quantity });
+        return { symbol, side: normalizedSide, quantity, leverage, ok: true, order, leverageResult };
+      } catch (err) {
+        return { symbol, side: normalizedSide, quantity, leverage, ok: false, error: err.message };
+      }
+    }),
+  );
+
+  const filled = results.filter((r) => r.ok).length;
+  const failed = results.filter((r) => !r.ok).length;
+  return { filled, failed, results };
+}
+
+// Close a specific set of futures positions in one shot (reduce-only MARKET).
+// Only the symbols passed in are closed; each leg is independent. If `symbols`
+// is empty, every open position is closed.
+export async function closePositionsBySymbols(symbols = []) {
+  const wanted = new Set(
+    (Array.isArray(symbols) ? symbols : [])
+      .map((s) => String(s || '').toUpperCase())
+      .filter(Boolean),
+  );
+
+  const positions = await getFuturesPositions();
+  const targets = wanted.size > 0
+    ? positions.filter((p) => wanted.has(p.symbol))
+    : positions;
+
+  const results = await Promise.all(
+    targets.map(async (p) => {
+      const qty = Math.abs(Number(p.positionAmt) || 0);
+      if (qty <= 0) {
+        return { symbol: p.symbol, closed: false, skipped: true, reason: 'no quantity' };
+      }
+      try {
+        await closePosition(p.symbol, p.side, qty);
+        return { symbol: p.symbol, closed: true, quantity: qty, side: p.side };
+      } catch (err) {
+        return { symbol: p.symbol, closed: false, error: err.message };
+      }
+    }),
+  );
+
+  const closed = results.filter((r) => r.closed).length;
+  const failed = results.filter((r) => r.closed === false && !r.skipped).length;
+  return { closed, failed, results };
 }
 
 // Place a futures LIMIT order (GTC) at a specified price.

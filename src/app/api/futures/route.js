@@ -6,9 +6,12 @@ import {
   getFuturesSymbols,
   getFuturesPositive3dShortlist,
   getFuturesRsi1hScan,
+  getFuturesTopGainers,
   setFuturesLeverage,
   placeFuturesMarketOrder,
   placeFuturesLimitOrder,
+  placeBulkFuturesMarketOrders,
+  closePositionsBySymbols,
   placeFuturesExitOrders,
   cancelFuturesExitOrders,
   cancelFuturesOrder,
@@ -23,6 +26,12 @@ import {
   listStoredOrders,
   updateStoredRisk,
 } from '@/lib/order-db';
+import {
+  registerBasket,
+  listActiveBaskets,
+  updateBasket,
+  removeSymbolsFromBasket,
+} from '@/lib/bulk-basket-db';
 import { Redis } from '@upstash/redis';
 
 const redis = new Redis({
@@ -151,6 +160,10 @@ export async function GET(request) {
     } else if (type === 'rsi1hscan') {
       const scanLimit = parseInt(searchParams.get('scanLimit') || '280', 10);
       data = await cachedFetch(`rsi1hscan:${scanLimit}`, 180, () => getFuturesRsi1hScan(scanLimit));
+    } else if (type === 'topgainers') {
+      const limit = parseInt(searchParams.get('limit') || '60', 10);
+      const minVol = parseInt(searchParams.get('minVol') || '20000000', 10);
+      data = await cachedFetch(`topgainers:${limit}:${minVol}`, 60, () => getFuturesTopGainers({ limit, minQuoteVolume: minVol }));
     } else if (type === 'account') {
       data = await cachedFetch('account', 3, () => getFuturesAccount());
     } else if (type === 'dailyPnl') {
@@ -162,6 +175,9 @@ export async function GET(request) {
       const symbol = searchParams.get('symbol');
       const limit = searchParams.get('limit') || '100';
       data = await listStoredOrders({ symbol, limit });
+    } else if (type === 'baskets') {
+      // Active server-side bulk baskets (managed by the standalone watcher).
+      data = await listActiveBaskets();
     } else {
       // Full positions snapshot — the heaviest call. Cache 3s so 10 viewers
       // share one Binance fetch instead of each hitting the exchange.
@@ -436,6 +452,85 @@ export async function POST(request) {
       const result = await cancelFuturesOrder(symbol, orderId);
       await invalidateFuturesCaches();
       return NextResponse.json({ success: true, data: result });
+    }
+
+    if (action === 'bulkOpen') {
+      // Open 3-5 futures legs in one shot. Body:
+      //   { legs: [{ symbol, side, quantity, leverage }],
+      //     targetUsdt, stopUsdt, armed }
+      // Filled legs are registered as a server-side basket so the standalone
+      // watcher can auto-exit them 24/7, independent of the browser.
+      const legs = Array.isArray(body.legs) ? body.legs : [];
+      if (legs.length < 1) {
+        return NextResponse.json({ error: 'legs must contain at least one order' }, { status: 400 });
+      }
+      if (legs.length > 5) {
+        return NextResponse.json({ error: 'A bulk scalp supports at most 5 coins' }, { status: 400 });
+      }
+
+      const result = await placeBulkFuturesMarketOrders(legs);
+      await invalidateFuturesCaches();
+
+      // Register the successfully-filled legs as a monitored basket.
+      let basket = null;
+      const filled = (result.results || []).filter((r) => r.ok);
+      if (filled.length > 0) {
+        try {
+          const entrySide = String(filled[0].side || '').toUpperCase();
+          const posSide = entrySide === 'BUY' ? 'LONG' : 'SHORT';
+          basket = await registerBasket({
+            side: posSide,
+            symbols: filled.map((r) => r.symbol),
+            targetUsdt: body.targetUsdt,
+            stopUsdt: body.stopUsdt,
+            armed: body.armed !== false,
+          });
+        } catch (err) {
+          console.error('Failed to register bulk basket for server-side watch:', err.message);
+        }
+      }
+
+      return NextResponse.json({ success: true, data: { ...result, basket } });
+    }
+
+    if (action === 'bulkClose') {
+      // Close a specific set of positions in one shot. Body:
+      //   { symbols: [...], basketId? }
+      // Empty/absent symbols closes every open position. If basketId is given,
+      // the closed symbols are removed from that server-side basket too.
+      const symbols = Array.isArray(body.symbols) ? body.symbols : [];
+      const result = await closePositionsBySymbols(symbols);
+      await invalidateFuturesCaches();
+
+      // Clear the closed symbols from the server-side basket, if provided.
+      if (body.basketId) {
+        try {
+          await removeSymbolsFromBasket(body.basketId, symbols);
+        } catch (err) {
+          console.error('Failed to update basket after bulkClose:', err.message);
+        }
+      }
+
+      return NextResponse.json({ success: true, data: result });
+    }
+
+    if (action === 'listBaskets') {
+      const baskets = await listActiveBaskets();
+      return NextResponse.json({ success: true, data: baskets });
+    }
+
+    if (action === 'updateBasket') {
+      // Update thresholds / armed state on a server-side basket.
+      // Body: { basketId, targetUsdt?, stopUsdt?, armed? }
+      if (!body.basketId) {
+        return NextResponse.json({ error: 'basketId is required' }, { status: 400 });
+      }
+      const patch = {};
+      if (body.targetUsdt !== undefined) patch.targetUsdt = body.targetUsdt;
+      if (body.stopUsdt !== undefined) patch.stopUsdt = body.stopUsdt;
+      if (body.armed !== undefined) patch.armed = body.armed;
+      const updated = await updateBasket(body.basketId, patch);
+      return NextResponse.json({ success: true, data: updated });
     }
 
     if (action === 'closeAll') {
