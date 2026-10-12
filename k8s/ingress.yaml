@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app
+  namespace: binbalaws
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: binbalaws-redirect-https@kubernetescrd,binbalaws-basic-auth@kubernetescrd,binbalaws-security-headers@kubernetescrd
+spec:
+  ingressClassName: public
+  tls:
+    - hosts:
+        - binbala.botprimex.com
+      secretName: binbala-botprimex-com-tls
+  rules:
+    - host: binbala.botprimex.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 3000
