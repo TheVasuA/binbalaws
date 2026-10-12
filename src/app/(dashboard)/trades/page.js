@@ -1,368 +1,282 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  ResponsiveContainer,
-  AreaChart, Area,
-  BarChart, Bar,
-  PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { useFetch, formatCurrency } from '@/lib/utils';
 import {
-  PERIODS, mergeFills, filterByPeriod, summarize, buildTimeSeries, buildByCoin,
-  maxDrawdown, advancedStats, buildByWeekday, buildByHour, bestWorstDay,
+  Button, Callout, Card, CardBody, CardHeader, EmptyState, Page, PageHeader, Progress, Segmented, Skeleton,
+  Stat, StatGrid, Table, TabBar, Td, Th, THead, Tr,
+} from '@/components/ui';
+import { IconChart, IconRefresh } from '@/components/ui/icons';
+import { useApi } from '@/lib/use-api';
+import { dateTime, signedUsd, TONE_TEXT, toneOf, usd } from '@/lib/format';
+import {
+  PERIODS, advancedStats, bestWorstDay, buildByCoin, buildByHour, buildByWeekday, buildTimeSeries, filterByPeriod, maxDrawdown, mergeFills,
 } from '@/lib/tradeAnalytics';
+import { cn } from '@/lib/cn';
 
 const VIEWS = [
-  { id: 'overview', label: '📊 Overview' },
-  { id: 'insights', label: '🧠 Insights' },
-  { id: 'coins', label: '🪙 By Coin' },
-  { id: 'log', label: '📜 Trade Log' },
+  { value: 'overview', label: 'Overview' },
+  { value: 'insights', label: 'Insights' },
+  { value: 'coins', label: 'By coin' },
+  { value: 'log', label: 'Trade log' },
 ];
 
-const fmtDate = (ts) =>
-  new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const AXIS = { fill: 'var(--fg-subtle)', fontSize: 11 };
+const GRID = { stroke: 'var(--line)', strokeDasharray: '3 3', vertical: false };
+const signColor = (v) => (v >= 0 ? 'var(--pos)' : 'var(--neg)');
 
-// Small stat card
-function Stat({ label, value, sub, color = 'text-white' }) {
-  return (
-    <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-3 md:p-4">
-      <p className="text-gray-400 text-xs mb-1">{label}</p>
-      <p className={`text-lg md:text-2xl font-bold tabular-nums ${color}`}>{value}</p>
-      {sub && <p className="text-gray-500 text-xs mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
-// Recharts tooltip styled for the dark theme
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-gray-600 bg-gray-900/95 px-3 py-2 text-xs shadow-xl">
-      <p className="text-gray-300 mb-1">{label}</p>
+    <div className="rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs shadow-pop">
+      {label !== undefined && <p className="mb-0.5 text-fg-muted">{label}</p>}
       {payload.map((p) => (
-        <p key={p.dataKey} className="tabular-nums" style={{ color: p.color }}>
-          {p.name}: {formatCurrency(p.value)}
+        <p key={p.dataKey} className={cn('num', TONE_TEXT[toneOf(p.value)])}>
+          {p.name}: {signedUsd(p.value)}
         </p>
       ))}
     </div>
   );
 }
 
+function PnlBars({ data, xKey, height = 220, xProps }) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid {...GRID} />
+        <XAxis dataKey={xKey} tick={AXIS} tickLine={false} axisLine={false} minTickGap={16} {...xProps} />
+        <YAxis tick={AXIS} tickLine={false} axisLine={false} width={56} />
+        <Tooltip content={<ChartTooltip />} cursor={{ fill: 'var(--surface-3)' }} />
+        <ReferenceLine y={0} stroke="var(--line-strong)" />
+        <Bar dataKey="pnl" name="PnL" radius={[2, 2, 0, 0]} maxBarSize={28}>
+          {data.map((d, i) => <Cell key={i} fill={signColor(d.pnl)} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function Overview({ stats, series, dd, days, period }) {
+  const last = series.at(-1)?.cumulative ?? 0;
+  return (
+    <div className="space-y-4">
+      <StatGrid className="lg:grid-cols-4">
+        <Stat label="Net PnL" value={signedUsd(stats.net)} tone={toneOf(stats.net)} sub={`${stats.count} trades`} />
+        <Stat label="Win rate" value={`${stats.winRate.toFixed(1)}%`} sub={`${stats.wins} won, ${stats.losses} lost`} />
+        <Stat
+          label="Profit factor"
+          value={stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)}
+          sub={`Expectancy ${signedUsd(stats.expectancy)}`}
+        />
+        <Stat label="Max drawdown" value={dd.maxDrawdown ? `−${usd(dd.maxDrawdown)}` : usd(0)} tone={dd.maxDrawdown ? 'neg' : 'default'} sub={`${days.greenDays} green, ${days.redDays} red days`} />
+      </StatGrid>
+
+      <Card>
+        <CardHeader title="Cumulative PnL" description="Running total of realized PnL across the window." />
+        <CardBody className="pt-2">
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid {...GRID} />
+              <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} minTickGap={24} />
+              <YAxis tick={AXIS} tickLine={false} axisLine={false} width={56} />
+              <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'var(--line-strong)' }} />
+              <ReferenceLine y={0} stroke="var(--line-strong)" />
+              <Area
+                type="monotone"
+                dataKey="cumulative"
+                name="Cumulative"
+                stroke={signColor(last)}
+                strokeWidth={1.75}
+                fill={signColor(last)}
+                fillOpacity={0.08}
+                dot={false}
+                activeDot={{ r: 3 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </CardBody>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader title={`PnL per ${period === '1d' ? 'hour' : 'day'}`} />
+          <CardBody className="pt-2"><PnlBars data={series} xKey="label" /></CardBody>
+        </Card>
+        <Card>
+          <CardHeader title="Win and loss" />
+          <CardBody className="space-y-5">
+            <div>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <span className="num text-2xl font-semibold text-fg">{stats.winRate.toFixed(0)}%</span>
+                <span className="num text-xs text-fg-muted">{stats.wins} / {stats.count}</span>
+              </div>
+              <Progress value={stats.winRate} tone="pos" />
+            </div>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-[13px]">
+              <div><dt className="text-xs text-fg-muted">Gross profit</dt><dd className="num text-pos">{signedUsd(stats.profit)}</dd></div>
+              <div><dt className="text-xs text-fg-muted">Gross loss</dt><dd className="num text-neg">{signedUsd(stats.loss)}</dd></div>
+              <div><dt className="text-xs text-fg-muted">Average win</dt><dd className="num text-fg">{usd(stats.avgWin)}</dd></div>
+              <div><dt className="text-xs text-fg-muted">Average loss</dt><dd className="num text-fg">{usd(Math.abs(stats.avgLoss))}</dd></div>
+            </dl>
+          </CardBody>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function Insights({ stats, days, byWeekday, byHour }) {
+  return (
+    <div className="space-y-4">
+      <StatGrid className="lg:grid-cols-4">
+        <Stat label="Expectancy per trade" value={signedUsd(stats.expectancy)} tone={toneOf(stats.expectancy)} />
+        <Stat label="Longest win streak" value={stats.maxWinStreak} sub={`Longest loss streak ${stats.maxLossStreak}`} />
+        <Stat label="Best day" value={days.best ? signedUsd(days.best.pnl) : '—'} tone={days.best ? toneOf(days.best.pnl) : 'default'} />
+        <Stat label="Worst day" value={days.worst ? signedUsd(days.worst.pnl) : '—'} tone={days.worst ? toneOf(days.worst.pnl) : 'default'} />
+      </StatGrid>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="By day of week" />
+          <CardBody className="pt-2"><PnlBars data={byWeekday} xKey="name" /></CardBody>
+        </Card>
+        <Card>
+          <CardHeader title="By hour of day" description="Local time." />
+          <CardBody className="pt-2"><PnlBars data={byHour} xKey="label" xProps={{ minTickGap: 4 }} /></CardBody>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function ByCoin({ byCoin }) {
+  const maxAbs = Math.max(1, ...byCoin.map((c) => Math.abs(c.net)));
+  return (
+    <Card>
+      <Table>
+        <THead>
+          <Th>Coin</Th>
+          <Th align="right">Trades</Th>
+          <Th align="right" className="hidden sm:table-cell">Profit</Th>
+          <Th align="right" className="hidden sm:table-cell">Loss</Th>
+          <Th align="right">Net</Th>
+          <Th className="hidden w-40 md:table-cell"><span className="sr-only">Share</span></Th>
+        </THead>
+        <tbody>
+          {byCoin.map((c) => (
+            <Tr key={c.symbol}>
+              <Td className="font-medium text-fg">{c.symbol}</Td>
+              <Td align="right" className="text-fg-muted">{c.count}</Td>
+              <Td align="right" className="hidden text-pos sm:table-cell">{signedUsd(c.profit)}</Td>
+              <Td align="right" className="hidden text-neg sm:table-cell">{signedUsd(c.loss)}</Td>
+              <Td align="right" className={cn('font-medium', TONE_TEXT[toneOf(c.net)])}>{signedUsd(c.net)}</Td>
+              <Td className="hidden md:table-cell">
+                <Progress value={(Math.abs(c.net) / maxAbs) * 100} tone={c.net >= 0 ? 'pos' : 'neg'} />
+              </Td>
+            </Tr>
+          ))}
+        </tbody>
+      </Table>
+    </Card>
+  );
+}
+
+function TradeLog({ trades }) {
+  const rows = useMemo(() => [...trades].sort((a, b) => b.timestamp - a.timestamp), [trades]);
+  return (
+    <Card>
+      <Table className="max-h-[70vh] overflow-y-auto">
+        <THead sticky>
+          <Th>Symbol</Th>
+          <Th>Closed</Th>
+          <Th align="right">Fills</Th>
+          <Th align="right">Realized PnL</Th>
+        </THead>
+        <tbody>
+          {rows.map((t) => (
+            <Tr key={t.id}>
+              <Td className="font-medium text-fg">{(t.symbol || '').replace(/USDT$/, '')}</Td>
+              <Td className="num text-fg-muted">{dateTime(t.timestamp)}</Td>
+              <Td align="right" className="text-fg-subtle">{t.fills}</Td>
+              <Td align="right" className={cn('font-medium', TONE_TEXT[toneOf(t.income)])}>{signedUsd(t.income)}</Td>
+            </Tr>
+          ))}
+        </tbody>
+      </Table>
+    </Card>
+  );
+}
+
 export default function HistoryPage() {
   const [view, setView] = useState('overview');
   const [period, setPeriod] = useState('1m');
+  const { data: trades, loading, error, refetch } = useApi('/api/trades?type=pnl&limit=1000');
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
 
-  const { data: trades, loading, error, refetch } = useFetch('/api/trades?type=pnl&limit=1000');
-
-  // Merge partial-fill records into one trade per close (same symbol + second).
-  const merged = useMemo(() => mergeFills(trades || []), [trades]);
+  const merged = useMemo(() => mergeFills(Array.isArray(trades) ? trades : []), [trades]);
   const scoped = useMemo(() => filterByPeriod(merged, period), [merged, period]);
   const stats = useMemo(() => advancedStats(scoped), [scoped]);
   const series = useMemo(() => buildTimeSeries(scoped, period), [scoped, period]);
-  const byCoin = useMemo(() => buildByCoin(scoped), [scoped]);
   const dd = useMemo(() => maxDrawdown(series), [series]);
+  const days = useMemo(() => bestWorstDay(scoped), [scoped]);
+  const byCoin = useMemo(() => buildByCoin(scoped), [scoped]);
   const byWeekday = useMemo(() => buildByWeekday(scoped), [scoped]);
   const byHour = useMemo(() => buildByHour(scoped), [scoped]);
-  const days = useMemo(() => bestWorstDay(scoped), [scoped]);
 
-  const periodLabel = PERIODS.find((p) => p.id === period)?.label || '';
-  const winData = [
-    { name: 'Wins', value: stats.wins, color: '#22c55e' },
-    { name: 'Losses', value: stats.losses, color: '#ef4444' },
-  ];
+  const periodLabel = PERIODS.find((p) => p.id === period)?.label;
+
+  let body;
+  if (loading && !trades) {
+    body = (
+      <div className="space-y-4">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-72" />
+      </div>
+    );
+  } else if (!scoped.length) {
+    body = (
+      <Card>
+        <EmptyState icon={IconChart} title="No closed trades" description={`Nothing was realized in the ${periodLabel} window.`} />
+      </Card>
+    );
+  } else if (view === 'overview') {
+    body = <Overview stats={stats} series={series} dd={dd} days={days} period={period} />;
+  } else if (view === 'insights') {
+    body = <Insights stats={stats} days={days} byWeekday={byWeekday} byHour={byHour} />;
+  } else if (view === 'coins') {
+    body = <ByCoin byCoin={byCoin} />;
+  } else {
+    body = <TradeLog trades={scoped} />;
+  }
 
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
-      {/* Header + period tabs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">📈 History & Analysis</h1>
-          <p className="text-gray-500 text-sm mt-1">Realized PnL · {periodLabel} window</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1 bg-gray-800/60 border border-gray-700 rounded-xl p-1">
-            {PERIODS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPeriod(p.id)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  period === p.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={refetch}
-            disabled={loading}
-            className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-50 rounded-lg transition-all"
-            title="Refresh"
-          >
-            <svg className={`w-4 h-4 text-white ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 text-red-400 text-sm">
-          Error: {error}
-        </div>
-      )}
-
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Left sidebar */}
-        <aside className="md:w-48 md:flex-shrink-0">
-          <nav className="md:sticky md:top-24 flex md:flex-col gap-1 overflow-x-auto bg-gray-800/40 rounded-xl border border-gray-700 p-2">
-            {VIEWS.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => setView(v.id)}
-                className={`whitespace-nowrap text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                  view === v.id ? 'bg-blue-600 text-white font-medium' : 'text-gray-300 hover:text-white hover:bg-gray-700/60'
-                }`}
-              >
-                {v.label}
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {loading && !trades ? (
-            <div className="flex justify-center py-16">
-              <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : scoped.length === 0 ? (
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-10 text-center text-gray-500">
-              No closed trades in the {periodLabel} window.
-            </div>
-          ) : (
-            <>
-              {/* ── OVERVIEW ─────────────────────────────────────────── */}
-              {view === 'overview' && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <Stat label="Net PnL" value={`${stats.net >= 0 ? '+' : ''}${formatCurrency(stats.net)}`}
-                      color={stats.net >= 0 ? 'text-green-400' : 'text-red-400'} sub={`${stats.count} trades`} />
-                    <Stat label="Win Rate" value={`${stats.winRate.toFixed(1)}%`}
-                      color="text-blue-400" sub={`${stats.wins}W / ${stats.losses}L`} />
-                    <Stat label="Profit Factor" value={stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)}
-                      color="text-purple-400" sub={`expectancy ${formatCurrency(stats.expectancy)}`} />
-                    <Stat label="Max Drawdown" value={`-${formatCurrency(dd.maxDrawdown)}`}
-                      color="text-orange-400" sub={`${days.greenDays}🟢 / ${days.redDays}🔴 days`} />
-                  </div>
-
-                  {/* Cumulative PnL area */}
-                  <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-4">
-                    <h3 className="text-sm font-semibold text-white mb-3">Cumulative PnL</h3>
-                    <ResponsiveContainer width="100%" height={240}>
-                      <AreaChart data={series} margin={{ top: 5, right: 8, left: -12, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="pnlFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.5} />
-                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                        <XAxis dataKey="label" tick={{ fill: '#9ca3af', fontSize: 11 }} minTickGap={20} />
-                        <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} width={50} />
-                        <Tooltip content={<ChartTooltip />} />
-                        <ReferenceLine y={0} stroke="#6b7280" />
-                        <Area type="monotone" dataKey="cumulative" name="Cumulative" stroke="#3b82f6" strokeWidth={2} fill="url(#pnlFill)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Per-bucket PnL bars */}
-                    <div className="lg:col-span-2 bg-gray-800/50 rounded-xl border border-gray-700 p-4">
-                      <h3 className="text-sm font-semibold text-white mb-3">
-                        PnL per {period === '1d' ? 'hour' : 'day'}
-                      </h3>
-                      <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={series} margin={{ top: 5, right: 8, left: -12, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                          <XAxis dataKey="label" tick={{ fill: '#9ca3af', fontSize: 11 }} minTickGap={20} />
-                          <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} width={50} />
-                          <Tooltip content={<ChartTooltip />} cursor={{ fill: '#ffffff10' }} />
-                          <ReferenceLine y={0} stroke="#6b7280" />
-                          <Bar dataKey="pnl" name="PnL" radius={[3, 3, 0, 0]}>
-                            {series.map((d, i) => (
-                              <Cell key={i} fill={d.pnl >= 0 ? '#22c55e' : '#ef4444'} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {/* Win rate donut */}
-                    <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-4">
-                      <h3 className="text-sm font-semibold text-white mb-3">Win / Loss</h3>
-                      <ResponsiveContainer width="100%" height={220}>
-                        <PieChart>
-                          <Pie data={winData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={80} paddingAngle={2}>
-                            {winData.map((d) => <Cell key={d.name} fill={d.color} />)}
-                          </Pie>
-                          <Tooltip content={<ChartTooltip />} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <p className="text-center text-2xl font-bold text-white -mt-2">{stats.winRate.toFixed(0)}%</p>
-                      <p className="text-center text-gray-500 text-xs">{stats.wins} wins · {stats.losses} losses</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── INSIGHTS ─────────────────────────────────────────── */}
-              {view === 'insights' && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <Stat label="Expectancy / trade" value={formatCurrency(stats.expectancy)}
-                      color={stats.expectancy >= 0 ? 'text-green-400' : 'text-red-400'} sub="avg outcome per trade" />
-                    <Stat label="Avg Win / Loss" value={formatCurrency(stats.avgWin)}
-                      color="text-green-400" sub={`avg loss ${formatCurrency(stats.avgLoss)}`} />
-                    <Stat label="Win Streak" value={`${stats.maxWinStreak}`}
-                      color="text-green-400" sub={`loss streak ${stats.maxLossStreak}`} />
-                    <Stat label="Best Day"
-                      value={days.best ? `${formatCurrency(days.best.pnl)}` : '—'}
-                      color="text-green-400"
-                      sub={days.worst ? `worst ${formatCurrency(days.worst.pnl)}` : ''} />
-                  </div>
-
-                  {/* PnL by day of week */}
-                  <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-4">
-                    <h3 className="text-sm font-semibold text-white mb-3">PnL by Day of Week</h3>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={byWeekday} margin={{ top: 5, right: 8, left: -12, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                        <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                        <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} width={50} />
-                        <Tooltip content={<ChartTooltip />} cursor={{ fill: '#ffffff10' }} />
-                        <ReferenceLine y={0} stroke="#6b7280" />
-                        <Bar dataKey="pnl" name="PnL" radius={[3, 3, 0, 0]}>
-                          {byWeekday.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#22c55e' : '#ef4444'} />)}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  {/* PnL by hour of day */}
-                  <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-4">
-                    <h3 className="text-sm font-semibold text-white mb-3">PnL by Hour of Day</h3>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={byHour} margin={{ top: 5, right: 8, left: -12, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                        <XAxis dataKey="label" tick={{ fill: '#9ca3af', fontSize: 10 }} interval={1} />
-                        <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} width={50} />
-                        <Tooltip content={<ChartTooltip />} cursor={{ fill: '#ffffff10' }} />
-                        <ReferenceLine y={0} stroke="#6b7280" />
-                        <Bar dataKey="pnl" name="PnL" radius={[3, 3, 0, 0]}>
-                          {byHour.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#22c55e' : '#ef4444'} />)}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                    <p className="text-gray-500 text-xs mt-2">Local time. Spot when you trade best.</p>
-                  </div>
-                </div>
-              )}
-
-              {/* ── BY COIN ──────────────────────────────────────────── */}
-              {view === 'coins' && (
-                <div className="space-y-6">
-                  <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-4">
-                    <h3 className="text-sm font-semibold text-white mb-3">Net PnL by Coin</h3>
-                    <ResponsiveContainer width="100%" height={Math.max(220, byCoin.length * 34)}>
-                      <BarChart data={byCoin} layout="vertical" margin={{ top: 5, right: 16, left: 8, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} horizontal={false} />
-                        <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                        <YAxis type="category" dataKey="symbol" tick={{ fill: '#e5e7eb', fontSize: 12 }} width={64} />
-                        <Tooltip content={<ChartTooltip />} cursor={{ fill: '#ffffff10' }} />
-                        <ReferenceLine x={0} stroke="#6b7280" />
-                        <Bar dataKey="net" name="Net PnL" radius={[0, 3, 3, 0]}>
-                          {byCoin.map((d, i) => <Cell key={i} fill={d.net >= 0 ? '#22c55e' : '#ef4444'} />)}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  {/* Per-coin table */}
-                  <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-700 text-gray-400">
-                          <th className="text-left py-2 px-4 font-medium">Coin</th>
-                          <th className="text-right py-2 px-4 font-medium">Trades</th>
-                          <th className="text-right py-2 px-4 font-medium">Profit</th>
-                          <th className="text-right py-2 px-4 font-medium">Loss</th>
-                          <th className="text-right py-2 px-4 font-medium">Net</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {byCoin.map((c) => (
-                          <tr key={c.symbol} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                            <td className="py-2.5 px-4 text-white font-medium">{c.symbol}</td>
-                            <td className="py-2.5 px-4 text-right text-gray-400">{c.count}</td>
-                            <td className="py-2.5 px-4 text-right text-green-400">+{formatCurrency(c.profit)}</td>
-                            <td className="py-2.5 px-4 text-right text-red-400">{formatCurrency(c.loss)}</td>
-                            <td className={`py-2.5 px-4 text-right font-bold ${c.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {c.net >= 0 ? '+' : ''}{formatCurrency(c.net)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* ── TRADE LOG ────────────────────────────────────────── */}
-              {view === 'log' && (
-                <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
-                  <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-white">Trade Log</h3>
-                    <span className="text-gray-500 text-xs">{scoped.length} trades</span>
-                  </div>
-                  <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-gray-800">
-                        <tr className="border-b border-gray-700 text-gray-400">
-                          <th className="text-left py-2 px-4 font-medium">#</th>
-                          <th className="text-left py-2 px-4 font-medium">Symbol</th>
-                          <th className="text-left py-2 px-4 font-medium">Date</th>
-                          <th className="text-right py-2 px-4 font-medium">Realized PnL</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...scoped].sort((a, b) => b.timestamp - a.timestamp).map((t, i) => (
-                          <tr key={t.id || i} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                            <td className="py-2.5 px-4 text-gray-500">{i + 1}</td>
-                            <td className="py-2.5 px-4 text-white font-medium">
-                              {(t.symbol || '').replace(/USDT$/, '')}
-                              {t.fills > 1 && (
-                                <span className="ml-2 text-[10px] text-gray-500">{t.fills} fills</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-4 text-gray-400">{fmtDate(t.timestamp)}</td>
-                            <td className={`py-2.5 px-4 text-right font-bold ${Number(t.income) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {Number(t.income) >= 0 ? '+' : ''}{formatCurrency(t.income)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+    <Page>
+      <PageHeader
+        title="History"
+        description="Realized PnL from closed futures positions. Partial fills are merged into one trade."
+        actions={
+          <>
+            <Segmented
+              ariaLabel="Period"
+              options={PERIODS.map((p) => ({ value: p.id, label: p.label }))}
+              value={period}
+              onChange={setPeriod}
+            />
+            <Button size="icon" variant="secondary" onClick={refresh} disabled={loading || refreshing} aria-label="Refresh">
+              <IconRefresh size={15} className={cn((loading || refreshing) && 'animate-spin')} />
+            </Button>
+          </>
+        }
+      />
+      <TabBar tabs={VIEWS.map((v) => (v.value === 'log' ? { ...v, count: scoped.length } : v))} value={view} onChange={setView} />
+      {error && <Callout tone="danger" title="Could not load trades" className="mb-4">{error}</Callout>}
+      {body}
+    </Page>
   );
 }

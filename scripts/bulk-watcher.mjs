@@ -29,6 +29,7 @@ import {
   listActiveBaskets,
   updateBasket,
   removeBasket,
+  writeWatcherHeartbeat,
 } from '../src/lib/bulk-basket-db.js';
 
 const POLL_MS = Number(process.env.BULK_WATCHER_POLL_MS) || 3000;
@@ -53,6 +54,12 @@ function basketPnl(basket, positionsBySymbol) {
 }
 
 async function tick() {
+  try {
+    await writeWatcherHeartbeat(POLL_MS);
+  } catch (err) {
+    log('Heartbeat write failed:', err.message);
+  }
+
   let baskets;
   try {
     baskets = await listActiveBaskets();

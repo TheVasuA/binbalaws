@@ -41,9 +41,6 @@ export function useBackendFuturesStream() {
   const [loaded, setLoaded] = useState(false);
   const [dailyPnl, setDailyPnl] = useState(null); // { realizedPnl, ... }
 
-  const positionsRef = useRef(positions);
-  positionsRef.current = positions;
-
   const wsRef = useRef(null); // holds the price EventSource (SSE)
   const symbolsRef = useRef('');
 

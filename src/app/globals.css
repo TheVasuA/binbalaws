@@ -1,318 +1,139 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ── Design tokens ──────────────────────────────────────────────────────────
+   Every color in the UI comes from these variables; components never use raw
+   palette utilities (gray-800 etc.), so a theme is just a new token block. */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0d10;
+  --surface: #111418;
+  --surface-2: #161a1f;
+  --surface-3: #1d2228;
+  --line: #22282f;
+  --line-strong: #2f363f;
+  --fg: #e7eaee;
+  --fg-muted: #8b95a3;
+  --fg-subtle: #5d6673;
+  --accent: #4c82f7;
+  --accent-hover: #6694f8;
+  --accent-fg: #ffffff;
+  --pos: #2ebd85;
+  --neg: #f6465d;
+  --warn: #e5a50a;
+  --overlay: rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 12px 32px -8px rgb(0 0 0 / 0.6), 0 0 0 1px var(--line-strong);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f8f9fb;
+  --surface-3: #eef0f3;
+  --line: #e3e6eb;
+  --line-strong: #cfd4dc;
+  --fg: #111827;
+  --fg-muted: #5b6474;
+  --fg-subtle: #8a93a2;
+  --accent: #2f6fe4;
+  --accent-hover: #255fcc;
+  --accent-fg: #ffffff;
+  --pos: #0b9b6a;
+  --neg: #df2c45;
+  --warn: #b7791f;
+  --overlay: rgb(15 23 42 / 0.35);
+  --shadow-pop: 0 12px 32px -8px rgb(15 23 42 / 0.18), 0 0 0 1px var(--line);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --shadow-pop: var(--shadow-pop);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    background: var(--bg);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  input[type="range"] {
+    accent-color: var(--accent);
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* ── Theme system ─────────────────────────────────────────────────────────
-   Themes are applied via `data-theme` on <html>. Each theme defines:
-     --app-bg    : the page background (body)
-     --surface   : card/panel background     (maps Tailwind bg-gray-800/900)
-     --surface-2 : slightly lighter surface   (maps bg-gray-800/50, gradients)
-     --border    : panel border color         (maps border-gray-700)
-   The overrides below re-tint the hardcoded Tailwind gray utilities so the
-   whole dashboard — not just the body — follows the theme.
-   Default (no attribute) keeps the original gray look. */
-html[data-theme] body.theme-bg {
-  background: var(--app-bg) fixed;
-  color: var(--text, #e5e7eb);
-  transition: background 0.3s ease, color 0.3s ease;
-}
-
-/* ── Wallpaper layer ────────────────────────────────────────────────────────
-   A fixed, full-viewport layer behind all content. The image + opacity come
-   from CSS variables set by useWallpaper(). Sits above the themed body bg but
-   below the app (which uses translucent surfaces so it shows through). */
-.wallpaper-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: var(--wallpaper-url, none);
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-  opacity: var(--wallpaper-opacity, 0);
-  transition: opacity 0.4s ease;
-}
-/* App content sits above the wallpaper. */
-.app-shell { position: relative; z-index: 1; }
-
-/* ── Surfaces (cards, panels) ────────────────────────────────────────────── */
-html[data-theme] .bg-gray-900,
-html[data-theme] .bg-gray-900\/95,
-html[data-theme] .bg-gray-900\/80,
-html[data-theme] .bg-gray-900\/70,
-html[data-theme] .bg-gray-900\/50,
-html[data-theme] .bg-gray-900\/30,
-html[data-theme] .bg-gray-800\/50,
-html[data-theme] .bg-gray-800\/40,
-html[data-theme] .bg-gray-800\/30 {
-  background-image: none !important;
-  background-color: var(--surface) !important;
-}
-
-/* Slightly lighter surface + gradient cards flattened to --surface-2. */
-html[data-theme] .bg-gray-800,
-html[data-theme] .bg-gray-800\/80,
-html[data-theme] .from-gray-900,
-html[data-theme] .from-gray-800,
-html[data-theme] .bg-gray-700\/50,
-html[data-theme] .bg-gray-700 {
-  background-image: none !important;
-  background-color: var(--surface-2) !important;
-}
-
-/* ── Borders ─────────────────────────────────────────────────────────────── */
-html[data-theme] .border-gray-700,
-html[data-theme] .border-gray-700\/50,
-html[data-theme] .border-gray-700\/40,
-html[data-theme] .border-gray-800,
-html[data-theme] .border-gray-600,
-html[data-theme] .border-b.border-gray-700,
-html[data-theme] .border-b.border-gray-800 {
-  border-color: var(--border) !important;
-}
-
-/* ── Navbar / sticky headers ─────────────────────────────────────────────── */
-/* Uses --nav (slightly distinct from cards) so the header reads as a bar. */
-html[data-theme] nav.bg-gray-800\/80 {
-  background-color: color-mix(in srgb, var(--nav, var(--surface)) 88%, transparent) !important;
-  border-color: var(--border) !important;
-}
-
-/* ── Text ─────────────────────────────────────────────────────────────────
-   --text = primary, --text-muted = secondary. Defined per theme so light
-   themes flip to dark ink automatically. */
-html[data-theme] .text-white { color: var(--text) !important; }
-html[data-theme] .text-gray-200,
-html[data-theme] .text-gray-300 { color: var(--text) !important; }
-html[data-theme] .text-gray-400,
-html[data-theme] .text-gray-500,
-html[data-theme] .text-gray-600 { color: var(--text-muted) !important; }
-
-/* Nav links: idle uses muted text, hover/active fill from theme. */
-html[data-theme] nav .hover\:bg-gray-700\/50:hover,
-html[data-theme] nav .hover\:bg-gray-800:hover {
-  background-color: var(--surface-2) !important;
-}
-html[data-theme] nav .hover\:text-white:hover { color: var(--text) !important; }
-
-/* Keep intentional accent text colors (green/red/blue/yellow PnL + badges)
-   untouched — only the neutral grays above are remapped. */
-
-/* Shared defaults for all DARK themes (light themes override --text below). */
-html[data-theme="midnight"],
-html[data-theme="slate"],
-html[data-theme="ocean"],
-html[data-theme="forest"],
-html[data-theme="grape"],
-html[data-theme="crimson"],
-html[data-theme="carbon"],
-html[data-theme="sand"],
-html[data-theme="teal"],
-html[data-theme="rose"] {
-  --text: #e5e7eb;
-  --text-muted: #94a3b8;
-  --nav: var(--surface);
-}
-
-/* 1. Midnight (default dark, gray) */
-html[data-theme="midnight"] {
-  --app-bg: #0b1220;
-  --surface: #111827;
-  --surface-2: #1f2937;
-  --border: #374151;
-}
-
-/* 2. Slate (cool blue-gray) */
-html[data-theme="slate"] {
-  --app-bg: #0b1220;
-  --surface: #0f172a;
-  --surface-2: #1e293b;
-  --border: #334155;
-}
-
-/* 3. Ocean (deep blue) */
-html[data-theme="ocean"] {
-  --app-bg: radial-gradient(1200px 800px at 20% -10%, #0b2540 0%, #071a2e 45%, #04101d 100%);
-  --surface: #0a1f36;
-  --surface-2: #0f2c4d;
-  --border: #1c3a5a;
-}
-
-/* 4. Forest (deep green) */
-html[data-theme="forest"] {
-  --app-bg: radial-gradient(1200px 800px at 80% -10%, #0c2a1f 0%, #08201a 45%, #04120e 100%);
-  --surface: #0a2119;
-  --surface-2: #103026;
-  --border: #1c4436;
-}
-
-/* 5. Grape (deep purple) */
-html[data-theme="grape"] {
-  --app-bg: radial-gradient(1200px 800px at 20% -10%, #221540 0%, #1a1030 45%, #100a1e 100%);
-  --surface: #1a1030;
-  --surface-2: #271748;
-  --border: #3a2668;
-}
-
-/* 6. Crimson (dark red) */
-html[data-theme="crimson"] {
-  --app-bg: radial-gradient(1200px 800px at 80% -10%, #3a1220 0%, #290c17 45%, #17070d 100%);
-  --surface: #250b13;
-  --surface-2: #37121e;
-  --border: #52202f;
-}
-
-/* 7. Carbon (near-black OLED) */
-html[data-theme="carbon"] {
-  --app-bg: #000000;
-  --surface: #0a0a0a;
-  --surface-2: #161616;
-  --border: #2a2a2a;
-}
-
-/* 8. Sand (warm dark) */
-html[data-theme="sand"] {
-  --app-bg: radial-gradient(1200px 800px at 50% -10%, #2b2417 0%, #201b12 45%, #12100a 100%);
-  --surface: #1c1810;
-  --surface-2: #2a2417;
-  --border: #453b24;
-}
-
-/* 9. Teal (deep cyan) */
-html[data-theme="teal"] {
-  --app-bg: radial-gradient(1200px 800px at 20% -10%, #0c2f2f 0%, #082222 45%, #041414 100%);
-  --surface: #0a2626;
-  --surface-2: #103434;
-  --border: #1c4a4a;
-}
-
-/* 10. Rose (deep pink) */
-html[data-theme="rose"] {
-  --app-bg: radial-gradient(1200px 800px at 80% -10%, #3a1530 0%, #260e20 45%, #180a14 100%);
-  --surface: #24101e;
-  --surface-2: #351a2c;
-  --border: #522942;
-}
-
-/* ── Light themes ──────────────────────────────────────────────────────────
-   The app uses light text (text-white / text-gray-300) which is invisible on a
-   light surface, so light themes also darken the text utilities. */
-
-/* 11. Light (cool gray) */
-html[data-theme="light"] {
-  --app-bg: #eef1f5;
-  --surface: #ffffff;
-  --surface-2: #f3f4f6;
-  --border: #d1d5db;
-  --text: #111827;
-  --text-muted: #4b5563;
-  --nav: #ffffff;
-}
-
-/* 12. Paper (warm off-white) */
-html[data-theme="paper"] {
-  --app-bg: #f2ede3;
-  --surface: #fbf8f2;
-  --surface-2: #f3ede1;
-  --border: #ddd3c2;
-  --text: #1c1917;
-  --text-muted: #57534e;
-  --nav: #fbf8f2;
-}
-
-/* Gradient clip-text headings (balance, goal) → solid dark so they stay
-   visible on a light background. */
-html[data-theme="light"] .bg-clip-text.text-transparent,
-html[data-theme="paper"] .bg-clip-text.text-transparent {
-  -webkit-text-fill-color: var(--text) !important;
-  color: var(--text) !important;
-  background: none !important;
-}
-
-/* ── Light-theme readability sweep ─────────────────────────────────────────
-   The app is dark-first, so it uses near-white text and very light accent
-   shades (…-100/-200/-300) that disappear on a white surface. Darken those to
-   readable equivalents. The …-400/-500 accents (PnL green/red, badges) already
-   contrast fine on white and are left alone to preserve meaning. */
-
-/* Extra neutral text not covered by the token rules. */
-html[data-theme="light"] .text-gray-100,
-html[data-theme="paper"] .text-gray-100 { color: var(--text) !important; }
-
-/* Too-light accent text → darker, still-colored equivalents. */
-html[data-theme="light"] .text-blue-200,   html[data-theme="paper"] .text-blue-200,
-html[data-theme="light"] .text-blue-300,   html[data-theme="paper"] .text-blue-300 { color: #1d4ed8 !important; }
-html[data-theme="light"] .text-green-200,  html[data-theme="paper"] .text-green-200,
-html[data-theme="light"] .text-green-300,  html[data-theme="paper"] .text-green-300 { color: #15803d !important; }
-html[data-theme="light"] .text-red-200,    html[data-theme="paper"] .text-red-200,
-html[data-theme="light"] .text-red-300,    html[data-theme="paper"] .text-red-300 { color: #b91c1c !important; }
-html[data-theme="light"] .text-yellow-200, html[data-theme="paper"] .text-yellow-200,
-html[data-theme="light"] .text-yellow-300, html[data-theme="paper"] .text-yellow-300,
-html[data-theme="light"] .text-yellow-400, html[data-theme="paper"] .text-yellow-400 { color: #a16207 !important; }
-html[data-theme="light"] .text-orange-200, html[data-theme="paper"] .text-orange-200,
-html[data-theme="light"] .text-orange-300, html[data-theme="paper"] .text-orange-300 { color: #c2410c !important; }
-html[data-theme="light"] .text-purple-300, html[data-theme="paper"] .text-purple-300 { color: #7e22ce !important; }
-
-/* The yellow "10M$" brand + amber symbol names use a light amber → darken so
-   they read on white (keeps a gold tone). */
-html[data-theme="light"] .text-yellow-400.text-lg,
-html[data-theme="paper"] .text-yellow-400.text-lg { color: #b45309 !important; }
-
-/* Kill light text-shadows/glows that only make sense on dark backgrounds. */
-html[data-theme="light"] [class*="text-shadow"],
-html[data-theme="paper"] [class*="text-shadow"] {
-  text-shadow: none !important;
-}
-
-/* Active nav pill keeps white text on its blue fill. */
-html[data-theme="light"] .bg-blue-600.text-white,
-html[data-theme="paper"] .bg-blue-600.text-white,
-html[data-theme="light"] .bg-blue-600 .text-white,
-html[data-theme="paper"] .bg-blue-600 .text-white { color: #ffffff !important; }
-
-/* Shimmer animation for progress bar */
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
+@layer utilities {
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }
 
-.animate-shimmer {
-  animation: shimmer 2s infinite;
-}
-
-/* Fade in animation for mobile menu */
-@keyframes fadeIn {
+@keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -320,6 +141,30 @@ html[data-theme="paper"] .bg-blue-600 .text-white { color: #ffffff !important; }
   }
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.2s ease-out;
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-toast-in {
+  animation: toast-in 160ms ease-out;
+}
+
+.animate-dialog-in {
+  animation: dialog-in 140ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
