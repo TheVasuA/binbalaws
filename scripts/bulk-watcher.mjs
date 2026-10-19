@@ -23,18 +23,144 @@
 
 import {
   getFuturesPositions,
+  getFuturesAccount,
+  getTodayRealizedPnl,
   closePositionsBySymbols,
+  closeAllPositions,
 } from '../src/lib/binance.js';
 import {
   listActiveBaskets,
   updateBasket,
   removeBasket,
 } from '../src/lib/bulk-basket-db.js';
+import {
+  getBaseBalanceSetting,
+  getEquity,
+  isBaseBalanceBreached,
+  applyProfitRatchet,
+} from '../src/lib/base-balance-guard.js';
+import { syncCompoundGoalFromTodayPnl } from '../src/lib/daily-goal-sync.js';
 
 const POLL_MS = Number(process.env.BULK_WATCHER_POLL_MS) || 3000;
+// How often to re-read the base-balance setting from Redis (it rarely changes,
+// so don't pay a Redis round-trip on every tick).
+const SETTINGS_REFRESH_MS = 15_000;
+// How often to run the profit ratchet (the income endpoint is heavy — weight 30).
+const RATCHET_INTERVAL_MS = Number(process.env.BULK_WATCHER_RATCHET_MS) || 30_000;
 
 function log(...args) {
   console.log(new Date().toISOString(), '[bulk-watcher]', ...args);
+}
+
+// ── Base Balance Protection (balance floor) ──────────────────────────────────
+// If equity (wallet + unrealized PnL) touches the configured floor while any
+// position is open, close EVERYTHING (including 20x+) immediately. Runs here so
+// the protection is live 24/7 even with no browser open.
+let cachedBaseBalance = 0;
+let cachedBaseBalanceAt = 0;
+
+async function getBaseBalanceCached() {
+  const now = Date.now();
+  if (now - cachedBaseBalanceAt >= SETTINGS_REFRESH_MS) {
+    const next = await getBaseBalanceSetting();
+    if (next !== cachedBaseBalance) {
+      log(next > 0
+        ? `Base balance protection ON — floor ${next} USDT.`
+        : 'Base balance protection OFF.');
+    }
+    cachedBaseBalance = next;
+    cachedBaseBalanceAt = now;
+  }
+  return cachedBaseBalance;
+}
+
+// ── Profit ratchet ───────────────────────────────────────────────────────────
+// Every RATCHET_INTERVAL_MS, credit the configured % of today's new realized
+// profit to the base balance (e.g. +$100 profit at 20% → floor 5000 → 5020).
+let lastRatchetAt = 0;
+
+async function profitRatchetTick(baseBalance) {
+  if (!(baseBalance > 0)) return;
+  const now = Date.now();
+  if (now - lastRatchetAt < RATCHET_INTERVAL_MS) return;
+  lastRatchetAt = now;
+
+  let pnl;
+  try {
+    pnl = await getTodayRealizedPnl();
+  } catch (err) {
+    log('Profit ratchet: failed to fetch today PnL:', err.message);
+    return;
+  }
+
+  try {
+    const result = await applyProfitRatchet(pnl);
+    if (result?.applied) {
+      log(`PROFIT RATCHET: today's realized PnL ${Number(pnl.realizedPnl).toFixed(2)} → ` +
+          `+${result.added} (${result.percent}%) → base balance ${result.previousBaseBalance} → ${result.baseBalance}.`);
+      // Use the raised floor immediately instead of waiting for the next refresh.
+      cachedBaseBalance = result.baseBalance;
+    }
+  } catch (err) {
+    log('Profit ratchet failed:', err.message);
+  }
+}
+
+// ── Daily compound goal (today's net PnL vs wallet × compound %) ─────────────
+let lastGoalSyncAt = 0;
+const GOAL_SYNC_INTERVAL_MS = 30_000;
+
+async function dailyGoalSyncTick() {
+  const now = Date.now();
+  if (now - lastGoalSyncAt < GOAL_SYNC_INTERVAL_MS) return;
+  lastGoalSyncAt = now;
+
+  let pnl;
+  let account;
+  try {
+    [pnl, account] = await Promise.all([getTodayRealizedPnl(), getFuturesAccount()]);
+  } catch (err) {
+    log('Daily goal sync: failed to fetch PnL/account:', err.message);
+    return;
+  }
+
+  try {
+    const result = await syncCompoundGoalFromTodayPnl({ dailyPnl: pnl, account });
+    if (result?.applied) {
+      const extra = result.action === 'marked' ? `trade #${result.trade}` : 'auto mark reverted';
+      log(
+        `DAILY GOAL SYNC: ${result.action} (${extra}) — today net ${result.todayNet} vs target ${result.target}.`,
+      );
+    }
+  } catch (err) {
+    log('Daily goal sync failed:', err.message);
+  }
+}
+
+// Returns true when the guard fired (so the caller skips basket work this tick).
+async function baseBalanceTick(baseBalance, positions) {
+  if (!(baseBalance > 0) || positions.length === 0) return false;
+
+  let account;
+  try {
+    account = await getFuturesAccount();
+  } catch (err) {
+    log('Base guard: failed to fetch account:', err.message);
+    return false;
+  }
+
+  if (!isBaseBalanceBreached({ baseBalance, account, positions })) return false;
+
+  const equity = getEquity(account);
+  log(`BASE BALANCE GUARD: equity ${equity.toFixed(2)} <= floor ${baseBalance}. ` +
+      `Force-closing ALL ${positions.length} position(s) (incl. 20x+).`);
+  try {
+    const result = await closeAllPositions({ includeHuge: true });
+    log(`Base guard closed: ${result.closed} ok, ${result.failed} failed.`);
+  } catch (err) {
+    log('Base guard close FAILED:', err.message);
+  }
+  return true;
 }
 
 // Compute the aggregate unrealized PnL for a basket from the live positions.
@@ -53,14 +179,28 @@ function basketPnl(basket, positionsBySymbol) {
 }
 
 async function tick() {
-  let baskets;
+  await dailyGoalSyncTick();
+
+  let baskets = [];
   try {
-    baskets = await listActiveBaskets();
+    baskets = (await listActiveBaskets()) || [];
   } catch (err) {
     log('Failed to read baskets from Redis:', err.message);
-    return;
   }
-  if (!baskets || baskets.length === 0) return;
+
+  let baseBalance = 0;
+  try {
+    baseBalance = await getBaseBalanceCached();
+  } catch (err) {
+    log('Failed to read base balance setting:', err.message);
+  }
+
+  // Nothing to watch this tick.
+  if (baskets.length === 0 && !(baseBalance > 0)) return;
+
+  // Grow the floor from banked profit (throttled internally).
+  await profitRatchetTick(baseBalance);
+  baseBalance = cachedBaseBalance || baseBalance;
 
   let positions;
   try {
@@ -69,6 +209,12 @@ async function tick() {
     log('Failed to fetch positions from Binance:', err.message);
     return;
   }
+
+  // Balance floor first — if it fires, every position is already being closed,
+  // so skip basket handling until the next tick sees the fresh state.
+  if (await baseBalanceTick(baseBalance, positions)) return;
+
+  if (baskets.length === 0) return;
 
   const positionsBySymbol = new Map(positions.map((p) => [p.symbol, p]));
 

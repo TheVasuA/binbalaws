@@ -21,12 +21,15 @@ export function useFetch(url, options = {}) {
   const [error, setError] = useState(null);
   const [apiWeight, setApiWeight] = useState(null);
 
-  const fetchData = useCallback(async (isBackground = false) => {
+  const fetchData = useCallback(async (isBackground = false, fresh = false) => {
     try {
       if (!isBackground) setLoading(true);
       setError(null);
-      
-      const response = await fetch(url);
+
+      const fetchUrl = fresh
+        ? `${url}${url.includes('?') ? '&' : '?'}fresh=1`
+        : url;
+      const response = await fetch(fetchUrl);
       const result = await response.json();
       
       if (result.success) {
@@ -54,7 +57,7 @@ export function useFetch(url, options = {}) {
     }
   }, [fetchData, refreshInterval]);
 
-  const refetch = () => fetchData();
+  const refetch = (fresh = false) => fetchData(false, fresh);
 
   return { data, loading, error, refetch, apiWeight };
 }

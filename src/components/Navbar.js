@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import ForceCloseAllButton from '@/components/ForceCloseAllButton';
 
 export default function Navbar({ onRefresh, loading, progressData }) {
@@ -44,6 +44,21 @@ export default function Navbar({ onRefresh, loading, progressData }) {
     const currentTradeEnd = progressData?.currentTradeEnd;
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleAppLogout = useCallback(async () => {
+    try {
+      await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'logout' }),
+      });
+    } catch { /* ignore */ }
+    setMenuOpen(false);
+    router.replace('/login');
+    router.refresh();
+  }, [router]);
 
   const navItems = [
     { href: '/', label: 'Futures' },
@@ -140,6 +155,14 @@ export default function Navbar({ onRefresh, loading, progressData }) {
           )}
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAppLogout}
+              className="hidden sm:inline-flex px-2.5 py-1.5 text-xs text-gray-400 hover:text-white border border-gray-600 hover:bg-gray-700/50 rounded-lg transition-colors"
+              title="End app session (7-day login)"
+            >
+              Sign out
+            </button>
             {/* Refresh Button */}
             {onRefresh && (
               <button
@@ -218,6 +241,14 @@ export default function Navbar({ onRefresh, loading, progressData }) {
               </Link>
             )
           ))}
+
+          <button
+            type="button"
+            onClick={handleAppLogout}
+            className="mt-3 w-full px-3 py-2.5 text-left text-sm text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 border border-gray-700"
+          >
+            Sign out
+          </button>
 
           {/* Close-all actions */}
           <div className="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-2">

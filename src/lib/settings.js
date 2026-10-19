@@ -15,6 +15,12 @@ export const DEFAULT_SETTINGS = {
   alarmLossPercent: 8,       // beep + alert when daily loss reaches this % of margin
   autoCloseOnBreaker: 0,     // 1 = auto-close all (except >=20x) when limit hit
   allowOrdersAfterBreach: 0, // 1 = allow new orders even after daily limit breached
+  baseBalance: 0,            // USD floor: when equity (wallet + uPnL) touches this,
+                             // ALL positions are force-closed (0 = disabled)
+  profitToBasePercent: 20,   // % of today's realized profit auto-added to the
+                             // base balance (only while baseBalance > 0; 0 = off)
+  requirePreOrderChecklist: 1, // 1 = Buy/Sell opens checklist popup before send
+  autoDailyGoalSync: 1,        // 1 = auto mark/undo goal from today's PnL vs daily target
 };
 
 /**
@@ -51,6 +57,7 @@ export function usePortfolioSettings() {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(next),
       });
       const json = await res.json();
@@ -68,7 +75,7 @@ export function usePortfolioSettings() {
   const reset = useCallback(async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/settings', { method: 'DELETE' });
+      const res = await fetch('/api/settings', { method: 'DELETE', credentials: 'include' });
       const json = await res.json();
       setSettings({ ...DEFAULT_SETTINGS, ...(json.data || {}) });
       return true;

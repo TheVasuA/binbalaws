@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFetch, formatCurrency, formatNumber } from '@/lib/utils';
 import { TRADIFI_NAMES } from '@/lib/tradfi';
+import { useNotify } from '@/lib/notify';
+import { requestPortfolioRefresh } from '@/lib/portfolioRefresh';
+import { usePortfolioSettings } from '@/lib/settings';
+import OrderConfirmModal from '@/components/OrderConfirmModal';
 
 function TradingViewChart({ symbol, interval }) {
   const containerRef = useRef(null);
@@ -156,6 +160,8 @@ function buildCompoundMilestoneSummary({
 }
 
 export default function NewOrderPage() {
+  const { startOrderAlert, stopOrderAlert } = useNotify();
+  const { settings } = usePortfolioSettings();
   const [search, setSearch] = useState('');
   // Asset-class tab for the coins list: 'crypto' | 'stocks' | 'commodities'.
   const [assetClass, setAssetClass] = useState('crypto');
@@ -192,6 +198,10 @@ export default function NewOrderPage() {
   const [compoundData, setCompoundData] = useState({ startingBalance: null, completedTrades: [] });
   const [compoundLoading, setCompoundLoading] = useState(true);
   const [compoundError, setCompoundError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingOrder, setPendingOrder] = useState(null);
+  const [confirmSummary, setConfirmSummary] = useState('');
+  const [openPositionCount, setOpenPositionCount] = useState(0);
 
   const {
     data: symbolsData,
@@ -562,26 +572,25 @@ export default function NewOrderPage() {
 
   // tradingViewSrc removed – using script-based TradingViewChart component instead
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const buildValidatedOrder = () => {
     setSubmitError('');
     setSubmitResult(null);
 
     if (!symbol) {
       setSubmitError('Please select a futures symbol.');
-      return;
+      return null;
     }
 
     const parsedLeverage = parseInt(leverage, 10);
     if (!Number.isFinite(parsedLeverage) || parsedLeverage < 1 || parsedLeverage > 125) {
       setSubmitError('Leverage must be between 1 and 125.');
-      return;
+      return null;
     }
 
     const parsedUsdtAmount = Number(usdtAmount);
     if (!Number.isFinite(parsedUsdtAmount) || parsedUsdtAmount <= 0) {
       setSubmitError('USDT amount must be a positive number.');
-      return;
+      return null;
     }
 
     const isPriceMode = riskMode === 'price';
@@ -596,24 +605,24 @@ export default function NewOrderPage() {
 
     if (parsedStopLossUsdt !== null && (!Number.isFinite(parsedStopLossUsdt) || parsedStopLossUsdt <= 0)) {
       setSubmitError('Stop loss USDT value must be a positive number or empty.');
-      return;
+      return null;
     }
     if (parsedTakeProfitUsdt !== null && (!Number.isFinite(parsedTakeProfitUsdt) || parsedTakeProfitUsdt <= 0)) {
       setSubmitError('Target USDT value must be a positive number or empty.');
-      return;
+      return null;
     }
     if (parsedStopLossPriceInput !== null && (!Number.isFinite(parsedStopLossPriceInput) || parsedStopLossPriceInput <= 0)) {
       setSubmitError('Stop loss price must be a positive number or empty.');
-      return;
+      return null;
     }
     if (parsedTakeProfitPriceInput !== null && (!Number.isFinite(parsedTakeProfitPriceInput) || parsedTakeProfitPriceInput <= 0)) {
       setSubmitError('Target price must be a positive number or empty.');
-      return;
+      return null;
     }
 
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
       setSubmitError('Live price unavailable for selected symbol. Please retry.');
-      return;
+      return null;
     }
 
     // For a LIMIT order, validate the limit price and size the position from it.
@@ -621,7 +630,7 @@ export default function NewOrderPage() {
     const parsedLimitPrice = Number(limitPrice);
     if (isLimit && (!Number.isFinite(parsedLimitPrice) || parsedLimitPrice <= 0)) {
       setSubmitError('Enter a valid limit price.');
-      return;
+      return null;
     }
     const sizingPrice = isLimit ? parsedLimitPrice : currentPrice;
 
@@ -630,13 +639,13 @@ export default function NewOrderPage() {
 
     if (!Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) {
       setSubmitError('Calculated quantity is too small for this symbol. Increase USDT amount.');
-      return;
+      return null;
     }
 
     const minQty = Number(selectedSymbol?.minQty);
     if (Number.isFinite(minQty) && minQty > 0 && normalizedQuantity < minQty) {
       setSubmitError(`Calculated quantity ${normalizedQuantity} is below min qty ${minQty} for ${symbol}.`);
-      return;
+      return null;
     }
 
     // Resolve trigger prices: direct in price mode, else convert from USDT risk.
@@ -666,12 +675,12 @@ export default function NewOrderPage() {
 
     if (parsedStopLossUsdt !== null && (!Number.isFinite(computedStopLossPrice) || computedStopLossPrice <= 0)) {
       setSubmitError('Stop loss USDT value is too large for this position size.');
-      return;
+      return null;
     }
 
     if (parsedTakeProfitUsdt !== null && (!Number.isFinite(computedTakeProfitPrice) || computedTakeProfitPrice <= 0)) {
       setSubmitError('Target USDT value is too large for this position size.');
-      return;
+      return null;
     }
 
     // Validate price-mode SL/TP are on the correct side of the entry price.
@@ -680,14 +689,14 @@ export default function NewOrderPage() {
       const slWrong = side === 'BUY' ? computedStopLossPrice >= entryRef : computedStopLossPrice <= entryRef;
       if (slWrong) {
         setSubmitError(`Stop loss price must be ${side === 'BUY' ? 'below' : 'above'} entry (${entryRef}).`);
-        return;
+        return null;
       }
     }
     if (isPriceMode && computedTakeProfitPrice !== null) {
       const tpWrong = side === 'BUY' ? computedTakeProfitPrice <= entryRef : computedTakeProfitPrice >= entryRef;
       if (tpWrong) {
         setSubmitError(`Target price must be ${side === 'BUY' ? 'above' : 'below'} entry (${entryRef}).`);
-        return;
+        return null;
       }
     }
 
@@ -699,24 +708,35 @@ export default function NewOrderPage() {
       ? null
       : Number(computedTakeProfitPrice.toFixed(pricePrecision));
 
+    const sideLabel = side === 'BUY' ? 'LONG' : 'SHORT';
+    return {
+      body: {
+        action: 'openPosition',
+        symbol,
+        side,
+        quantity: normalizedQuantity,
+        leverage: parsedLeverage,
+        orderType,
+        limitPrice: isLimit ? parsedLimitPrice : undefined,
+        stopLossPrice: normalizedStopLossPrice,
+        takeProfitPrice: normalizedTakeProfitPrice,
+        pricePrecision: selectedSymbol?.pricePrecision,
+      },
+      meta: { isLimit, parsedLeverage, normalizedQuantity, symbol },
+      summary: `${orderType} ${sideLabel} · ${formatCurrency(parsedUsdtAmount)} notional @ ${parsedLeverage}x · qty ${normalizedQuantity}`,
+    };
+  };
+
+  const executePlaceOrder = async (built) => {
+    const { body, meta } = built;
+    const { isLimit, parsedLeverage, normalizedQuantity, symbol: sym } = meta;
     try {
       setSubmitting(true);
 
       const response = await fetch('/api/futures', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'openPosition',
-          symbol,
-          side,
-          quantity: normalizedQuantity,
-          leverage: parsedLeverage,
-          orderType,
-          limitPrice: isLimit ? parsedLimitPrice : undefined,
-          stopLossPrice: normalizedStopLossPrice,
-          takeProfitPrice: normalizedTakeProfitPrice,
-          pricePrecision: selectedSymbol?.pricePrecision,
-        }),
+        body: JSON.stringify(body),
       });
 
       const result = await response.json();
@@ -725,12 +745,52 @@ export default function NewOrderPage() {
       }
 
       setSubmitResult(result.data);
-      refetchAccount();
+      requestPortfolioRefresh({ reason: 'openPosition', symbol: sym });
+      refetchAccount(true);
+
+      const order = result.data?.order;
+      const lev = result.data?.leverage?.leverage ?? parsedLeverage;
+      const sideLabel = body.side === 'BUY' ? 'LONG' : 'SHORT';
+      startOrderAlert({
+        title: `${isLimit ? 'Limit order placed' : 'Order filled'} — ${sym}`,
+        message: `${sideLabel} · qty ${order?.executedQty ?? normalizedQuantity} · ${lev}x leverage${order?.orderId ? ` · #${order.orderId}` : ''}`,
+      });
     } catch (error) {
       setSubmitError(error.message);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const built = buildValidatedOrder();
+    if (!built) return;
+
+    const requireChecklist = Number(settings?.requirePreOrderChecklist) !== 0;
+    if (requireChecklist) {
+      let openCount = 0;
+      try {
+        const r = await fetch('/api/futures?type=positions&fresh=1');
+        const j = await r.json();
+        if (j.success && Array.isArray(j.data?.positions)) {
+          openCount = j.data.positions.length;
+        }
+      } catch { /* ignore */ }
+      setOpenPositionCount(openCount);
+      setConfirmSummary(built.summary);
+      setPendingOrder(built);
+      setConfirmOpen(true);
+      return;
+    }
+    await executePlaceOrder(built);
+  };
+
+  const handleConfirmPlace = async () => {
+    if (!pendingOrder) return;
+    await executePlaceOrder(pendingOrder);
+    setConfirmOpen(false);
+    setPendingOrder(null);
   };
 
   return (
@@ -1032,6 +1092,13 @@ export default function NewOrderPage() {
                       {submitResult.savedOrder?.requestedRisk?.takeProfitPrice ? ` TP ${submitResult.savedOrder.requestedRisk.takeProfitPrice}` : ''}
                     </p>
                   )}
+                  <button
+                    type="button"
+                    onClick={stopOrderAlert}
+                    className="mt-2 px-2.5 py-1 rounded-md bg-gray-800 border border-green-500/40 text-green-200 text-xs font-medium hover:bg-gray-700 transition-colors"
+                  >
+                    Close alert sound
+                  </button>
                 </div>
               )}
 
@@ -1453,6 +1520,23 @@ export default function NewOrderPage() {
         )}
       </section>
 
+      <OrderConfirmModal
+        open={confirmOpen}
+        onClose={() => {
+          if (!submitting) {
+            setConfirmOpen(false);
+            setPendingOrder(null);
+          }
+        }}
+        onConfirm={handleConfirmPlace}
+        side={side}
+        symbol={symbol}
+        orderType={orderType}
+        summary={confirmSummary}
+        openPositionCount={openPositionCount}
+        maxOpenPositions={Number(settings?.maxOpenPositions) || 3}
+        confirming={submitting}
+      />
     </div>
   );
 }

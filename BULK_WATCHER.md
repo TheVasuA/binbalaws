@@ -20,6 +20,29 @@ Only baskets **this app opened** are watched. Positions you open directly on
 Binance are never touched (unless they share the same symbol + side as a basket
 leg — Binance nets those into one position).
 
+### Base Balance Protection (balance floor)
+
+The watcher also enforces the **Base Balance** set in Settings → Risk Actions.
+While any position is open, if overall balance (wallet + unrealized PnL) touches
+or drops to that floor, the watcher force-closes **every** position — including
+20x+ — with reduce-only market orders, no confirmation. Unlike baskets, this
+applies to *all* open positions, not just ones this app opened. Set it to `0`
+(Disable) to turn it off. The setting is re-read from Redis every 15 s.
+
+**Profit ratchet:** while the floor is active, the watcher (and the web app)
+automatically add *Profit → Base %* (default 20%) of today's realized profit to
+the base balance — e.g. +$100 profit → floor 5000 → 5020. Today's PnL is
+tracked as a high-water mark so each dollar is credited once; the floor never
+decreases from this. Runs every 30 s (`BULK_WATCHER_RATCHET_MS` to change).
+
+**Auto compound goal:** when **Auto mark compound goal from today's profit** is on
+(Settings → Portfolio Preferences), the watcher and the web app compare today's net
+PnL (realized + unrealized) to `wallet × compoundPercent / 100` — the same rule as
+the Futures **Today's Target** bar. At or above target, the next compound milestone
+is marked complete (`source: auto`); if profit falls back below target, only that
+auto-mark is undone. Manual marks are never removed. Runs every 30 s on the watcher;
+the dashboard also checks on each ~5 s balance poll.
+
 ## Requirements
 
 The watcher needs the same env as the app (put them in `.env`):

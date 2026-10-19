@@ -8,6 +8,7 @@ import { WALLPAPERS } from '@/lib/wallpapers';
 import { formatCurrency } from '@/lib/utils';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ForceCloseAllButton from '@/components/ForceCloseAllButton';
+import SettingsPasswordGate from '@/components/SettingsPasswordGate';
 
 // Field definitions drive the form so it stays in sync with the settings model.
 const FIELDS = [
@@ -94,11 +95,133 @@ export default function SettingsPage() {
   const [form, setForm] = useState(settings);
   const [savedFlash, setSavedFlash] = useState(false);
   const [activeSection, setActiveSection] = useState('risk-actions');
+  // Base balance input: `null` = show the saved value, string = user is editing.
+  const [baseDraft, setBaseDraft] = useState(null);
+  const [baseFlash, setBaseFlash] = useState(null); // 'set' | 'off' | null
+  const [authState, setAuthState] = useState('checking'); // checking | locked | unlocked
+  const [appPwCurrent, setAppPwCurrent] = useState('');
+  const [appPwNew, setAppPwNew] = useState('');
+  const [appPwConfirm, setAppPwConfirm] = useState('');
+  const [appPwError, setAppPwError] = useState('');
+  const [appPwSaved, setAppPwSaved] = useState(false);
+  const [appPwSaving, setAppPwSaving] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwSaved, setPwSaved] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings/auth', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((j) => setAuthState(j.authenticated ? 'unlocked' : 'locked'))
+      .catch(() => setAuthState('locked'));
+  }, []);
+
+  const handleLockSettings = async () => {
+    await fetch('/api/settings/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ action: 'logout' }),
+    });
+    setAuthState('locked');
+    setPwCurrent('');
+    setPwNew('');
+    setPwConfirm('');
+  };
+
+  const handleChangeAppPassword = async (e) => {
+    e.preventDefault();
+    setAppPwError('');
+    setAppPwSaved(false);
+    if (appPwNew !== appPwConfirm) {
+      setAppPwError('New passwords do not match.');
+      return;
+    }
+    setAppPwSaving(true);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'change',
+          currentPassword: appPwCurrent,
+          newPassword: appPwNew,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setAppPwError(json.error || 'Could not change password.');
+        return;
+      }
+      setAppPwCurrent('');
+      setAppPwNew('');
+      setAppPwConfirm('');
+      setAppPwSaved(true);
+      setTimeout(() => setAppPwSaved(false), 2500);
+    } catch {
+      setAppPwError('Request failed. Try again.');
+    } finally {
+      setAppPwSaving(false);
+    }
+  };
+
+  const handleChangeSettingsPassword = async (e) => {
+    e.preventDefault();
+    setPwError('');
+    setPwSaved(false);
+    if (pwNew !== pwConfirm) {
+      setPwError('New passwords do not match.');
+      return;
+    }
+    setPwSaving(true);
+    try {
+      const res = await fetch('/api/settings/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'change',
+          currentPassword: pwCurrent,
+          newPassword: pwNew,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setPwError(json.error || 'Could not change password.');
+        return;
+      }
+      setPwCurrent('');
+      setPwNew('');
+      setPwConfirm('');
+      setPwSaved(true);
+      setTimeout(() => setPwSaved(false), 2500);
+    } catch {
+      setPwError('Request failed. Try again.');
+    } finally {
+      setPwSaving(false);
+    }
+  };
 
   // Sync local form when settings load/change from the server.
   useEffect(() => {
     setForm(settings);
   }, [settings]);
+
+  // Base balance protection: save immediately (no need to hit "Save Settings").
+  const applyBaseBalance = async (value) => {
+    const num = Number(value);
+    const next = Number.isFinite(num) && num > 0 ? num : 0;
+    const ok = await save({ ...form, baseBalance: next });
+    if (ok) {
+      setBaseDraft(null);
+      setBaseFlash(next > 0 ? 'set' : 'off');
+      setTimeout(() => setBaseFlash(null), 2500);
+    }
+  };
 
   const isTestnet = process.env.NEXT_PUBLIC_BINANCE_TESTNET === 'true';
 
@@ -120,13 +243,33 @@ export default function SettingsPage() {
     }
   };
 
+  if (authState === 'checking') {
+    return <LoadingSpinner text="Checking access..." />;
+  }
+
+  if (authState === 'locked') {
+    return <SettingsPasswordGate onUnlock={() => setAuthState('unlocked')} />;
+  }
+
   if (loading) {
     return <LoadingSpinner text="Loading settings..." />;
   }
 
   // Derived, read-only account snapshot for context.
   const wallet = account?.totalWalletBalance || 0;
+  const equity = Number(account?.totalMarginBalance) || 0; // wallet + unrealized PnL
   const openPositions = positions?.length || 0;
+  const activeBase = Number(settings?.baseBalance) || 0;
+  const baseBuffer = equity - activeBase;
+  const baseInput = baseDraft ?? (activeBase > 0 ? String(activeBase) : '');
+  const baseInputNum = Number(baseInput) || 0;
+  const profitPct = Number(form.profitToBasePercent) || 0;
+  const ratchet = settings?.baseBalanceRatchet || null;
+  const ratchetIsToday = (() => {
+    if (!ratchet?.day) return false;
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    return String(ratchet.day) === String(start.getTime());
+  })();
   const highLevCount = (positions || []).filter(
     (p) => (p.leverage || 0) >= (Number(form.maxLeverageWarn) || 20),
   ).length;
@@ -138,16 +281,26 @@ export default function SettingsPage() {
     { id: 'theme', label: '🎨 Theme' },
     { id: 'wallpaper', label: '🖼 Wallpaper' },
     { id: 'preferences', label: '🛠 Preferences' },
+    { id: 'security', label: '🔒 Security' },
   ];
 
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">⚙️ Settings</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Portfolio goals, risk defaults and display preferences.
-        </p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-white">⚙️ Settings</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Portfolio goals, risk defaults and display preferences.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleLockSettings}
+          className="shrink-0 px-3 py-2 rounded-lg text-sm border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors"
+        >
+          Lock settings
+        </button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
@@ -206,6 +359,24 @@ export default function SettingsPage() {
         <label className="flex items-start gap-3 cursor-pointer mb-4">
           <input
             type="checkbox"
+            checked={Number(form.requirePreOrderChecklist) !== 0}
+            onChange={(e) => handleChange('requirePreOrderChecklist', e.target.checked ? 1 : 0)}
+            className="mt-0.5 h-4 w-4 accent-orange-500"
+          />
+          <span>
+            <span className="text-sm text-gray-200 font-medium">
+              Pre-order checklist popup (New Order Buy/Sell)
+            </span>
+            <span className="block text-gray-500 text-xs mt-0.5">
+              Shows the 5-point Yes/No confirmation before any futures market or limit order is sent.
+              Save settings to apply.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-3 cursor-pointer mb-4">
+          <input
+            type="checkbox"
             checked={Number(form.allowOrdersAfterBreach) === 1}
             onChange={(e) => handleChange('allowOrdersAfterBreach', e.target.checked ? 1 : 0)}
             className="mt-0.5 h-4 w-4 accent-yellow-500"
@@ -228,6 +399,154 @@ export default function SettingsPage() {
             {openPositions} open position{openPositions === 1 ? '' : 's'}. Force Close skips 20x+;
             Zero Order Close exits everything.
           </span>
+        </div>
+
+        {/* ── Base Balance Protection (balance floor) ─────────────────────── */}
+        <div className={`mt-6 rounded-xl border p-4 ${
+          activeBase > 0 ? 'border-emerald-500/50 bg-emerald-950/20' : 'border-gray-700 bg-gray-900/40'
+        }`}>
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <h3 className="text-sm font-semibold text-white">🛡 Base Balance Protection</h3>
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+              activeBase > 0
+                ? 'text-emerald-300 border-emerald-500/50 bg-emerald-500/10'
+                : 'text-gray-400 border-gray-600 bg-gray-800'
+            }`}>
+              {activeBase > 0 ? `ACTIVE · floor ${formatCurrency(activeBase)}` : 'OFF'}
+            </span>
+          </div>
+          <p className="text-gray-500 text-xs mb-3">
+            The balance you refuse to lose. While positions are open, if your overall balance
+            (wallet + unrealized PnL) touches or drops to this value, <span className="text-red-300 font-semibold">
+            every position is force-closed immediately — including 20x+ — with no confirmation</span>,
+            well before liquidation. Example: positions running on $8,000, base balance $5,000 →
+            the moment overall balance reaches $5,000 everything exits and $5,000 is protected.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+              <input
+                type="number"
+                min={0}
+                step="50"
+                placeholder="e.g. 5000"
+                value={baseInput}
+                onChange={(e) => setBaseDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') applyBaseBalance(baseInput); }}
+                className="w-44 bg-gray-900 border border-gray-600 rounded-lg pl-7 pr-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500 tabular-nums"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => applyBaseBalance(baseInput)}
+              disabled={saving || !(baseInputNum > 0)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white transition-colors"
+            >
+              {saving ? 'Saving…' : activeBase > 0 ? 'Update Base Balance' : 'Set Base Balance'}
+            </button>
+            {activeBase > 0 && (
+              <button
+                type="button"
+                onClick={() => applyBaseBalance(0)}
+                disabled={saving}
+                className="px-3 py-2 rounded-lg text-sm border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors"
+              >
+                Disable
+              </button>
+            )}
+            {baseFlash === 'set' && <span className="text-emerald-400 text-sm">✓ Protection active</span>}
+            {baseFlash === 'off' && <span className="text-gray-400 text-sm">Protection disabled</span>}
+          </div>
+
+          {/* Live context */}
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+            <div className="rounded-lg bg-gray-900/70 border border-gray-700 p-2">
+              <p className="text-gray-500">Overall balance now</p>
+              <p className="text-white font-semibold tabular-nums">{formatCurrency(equity)}</p>
+            </div>
+            <div className="rounded-lg bg-gray-900/70 border border-gray-700 p-2">
+              <p className="text-gray-500">Floor</p>
+              <p className="text-emerald-300 font-semibold tabular-nums">
+                {activeBase > 0 ? formatCurrency(activeBase) : '—'}
+              </p>
+            </div>
+            <div className="rounded-lg bg-gray-900/70 border border-gray-700 p-2 col-span-2 md:col-span-1">
+              <p className="text-gray-500">Room before exit-all</p>
+              <p className={`font-semibold tabular-nums ${
+                activeBase <= 0 ? 'text-gray-400'
+                  : baseBuffer <= 0 ? 'text-red-400'
+                  : baseBuffer < activeBase * 0.1 ? 'text-yellow-300'
+                  : 'text-green-400'
+              }`}>
+                {activeBase > 0 ? formatCurrency(baseBuffer) : '—'}
+              </p>
+            </div>
+          </div>
+
+          {equity > 0 && baseInputNum > 0 && baseInputNum >= equity && openPositions > 0 && (
+            <p className="text-red-400 text-xs mt-2">
+              ⚠ A floor at or above your current balance will exit all positions immediately.
+            </p>
+          )}
+
+          {/* Grow the floor from banked profit */}
+          <div className="mt-4 pt-4 border-t border-gray-700/60">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-gray-200 font-medium">📈 Grow from profit:</span>
+              <span className="text-sm text-gray-400">add</span>
+              <div className="relative">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="1"
+                  value={form.profitToBasePercent ?? ''}
+                  onChange={(e) => handleChange('profitToBasePercent', e.target.value)}
+                  className="w-20 bg-gray-900 border border-gray-600 rounded-lg pl-3 pr-7 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500 tabular-nums"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+              </div>
+              <span className="text-sm text-gray-400">of today&apos;s realized profit to the base balance</span>
+              <button
+                type="button"
+                onClick={() => save({ ...form })}
+                disabled={saving}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50 transition-colors"
+              >
+                Save %
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mt-1.5">
+              {profitPct > 0 ? (
+                <>
+                  Example: base {formatCurrency(activeBase || 5000)} + $100 profit today →{' '}
+                  <span className="text-emerald-300 font-semibold">
+                    {formatCurrency((activeBase || 5000) + 100 * (profitPct / 100))}
+                  </span>
+                  . Each dollar of profit is counted once; a dip and recovery later in the day adds nothing
+                  until PnL makes a new high. The floor only ever moves up from this.
+                </>
+              ) : (
+                'Set to 0 to keep the base balance fixed.'
+              )}
+              {activeBase <= 0 && ' Applies only while protection is active.'}
+            </p>
+            {ratchet && ratchetIsToday && (Number(ratchet.addedToday) > 0 || Number(ratchet.creditedPnl) > 0) && (
+              <p className="text-xs mt-1.5 text-gray-400">
+                Today: profit credited{' '}
+                <span className="text-white font-semibold tabular-nums">{formatCurrency(Number(ratchet.creditedPnl) || 0)}</span>
+                {' '}→ added to base{' '}
+                <span className="text-emerald-300 font-semibold tabular-nums">+{formatCurrency(Number(ratchet.addedToday) || 0)}</span>
+                {ratchet.lastAddedAt && (
+                  <span className="text-gray-600"> · last {new Date(ratchet.lastAddedAt).toLocaleTimeString()}</span>
+                )}
+              </p>
+            )}
+          </div>
+          <p className="text-gray-600 text-[11px] mt-2">
+            Enforced live on the Futures page and 24/7 by the server watcher (<code>npm run watcher</code>) when it is running.
+          </p>
         </div>
       </section>
       )}
@@ -388,7 +707,26 @@ export default function SettingsPage() {
         </div>
 
         {/* Live helper based on current inputs */}
-        <div className="mt-5 rounded-lg bg-gray-900/70 border border-gray-700 p-3 text-xs text-gray-400 space-y-1">
+        <label className="flex items-start gap-3 cursor-pointer mt-5 mb-4">
+          <input
+            type="checkbox"
+            checked={Number(form.autoDailyGoalSync) !== 0}
+            onChange={(e) => handleChange('autoDailyGoalSync', e.target.checked ? 1 : 0)}
+            className="mt-0.5 h-4 w-4 accent-green-500"
+          />
+          <span>
+            <span className="text-sm text-gray-200 font-medium">
+              Auto mark compound goal from today&apos;s profit
+            </span>
+            <span className="block text-gray-500 text-xs mt-0.5">
+              When today&apos;s net PnL (realized + open positions) reaches{' '}
+              {form.compoundPercent}% of wallet, the next milestone is marked complete automatically.
+              If profit drops back below that target, only the auto-mark is undone.
+            </span>
+          </span>
+        </label>
+
+        <div className="mt-2 rounded-lg bg-gray-900/70 border border-gray-700 p-3 text-xs text-gray-400 space-y-1">
           <p>
             Risk per trade at current wallet:{' '}
             <span className="text-red-300 font-semibold">{formatCurrency(riskPerTradeUsd)}</span>
@@ -421,6 +759,106 @@ export default function SettingsPage() {
             Reset to Defaults
           </button>
           {savedFlash && <span className="text-green-400 text-sm">✓ Saved</span>}
+        </div>
+      </section>
+      )}
+
+      {activeSection === 'security' && (
+      <section className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6 space-y-10">
+        <div>
+          <h2 className="text-lg font-semibold text-white mb-2">App login password</h2>
+          <p className="text-gray-500 text-sm mb-5">
+            Used to sign in to the whole dashboard (7-day session). Separate from the settings page password.
+          </p>
+          <form onSubmit={handleChangeAppPassword} className="max-w-md space-y-4">
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Current app password</label>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={appPwCurrent}
+                onChange={(e) => setAppPwCurrent(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">New app password</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={appPwNew}
+                onChange={(e) => setAppPwNew(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Confirm new app password</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={appPwConfirm}
+                onChange={(e) => setAppPwConfirm(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            {appPwError && <p className="text-red-400 text-sm">{appPwError}</p>}
+            {appPwSaved && <p className="text-green-400 text-sm">App password updated.</p>}
+            <button
+              type="submit"
+              disabled={appPwSaving || !appPwCurrent || !appPwNew || !appPwConfirm}
+              className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white transition-colors"
+            >
+              {appPwSaving ? 'Saving…' : 'Update app password'}
+            </button>
+          </form>
+        </div>
+
+        <div className="border-t border-gray-700 pt-8">
+        <h2 className="text-lg font-semibold text-white mb-2">Settings page password</h2>
+        <p className="text-gray-500 text-sm mb-5">
+          Extra lock for this settings area only (12-hour session after unlock).
+        </p>
+        <form onSubmit={handleChangeSettingsPassword} className="max-w-md space-y-4">
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">Current password</label>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={pwCurrent}
+              onChange={(e) => setPwCurrent(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">New password</label>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={pwNew}
+              onChange={(e) => setPwNew(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">Confirm new password</label>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={pwConfirm}
+              onChange={(e) => setPwConfirm(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          {pwError && <p className="text-red-400 text-sm">{pwError}</p>}
+          {pwSaved && <p className="text-green-400 text-sm">Password updated.</p>}
+          <button
+            type="submit"
+            disabled={pwSaving || !pwCurrent || !pwNew || !pwConfirm}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white transition-colors"
+          >
+            {pwSaving ? 'Saving…' : 'Update settings password'}
+          </button>
+        </form>
         </div>
       </section>
       )}

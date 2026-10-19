@@ -32,6 +32,8 @@ import {
   updateBasket,
   removeSymbolsFromBasket,
 } from '@/lib/bulk-basket-db';
+import { applyProfitRatchet } from '@/lib/base-balance-guard';
+import { syncCompoundGoalFromTodayPnl } from '@/lib/daily-goal-sync';
 import { Redis } from '@upstash/redis';
 
 const redis = new Redis({
@@ -64,6 +66,36 @@ async function getBreakerSettings() {
 // In-process de-duplication: if several requests arrive on the same server at
 // once and the cache is cold, only one Binance fetch runs; the rest await it.
 const inflight = new Map();
+
+async function buildDailyPnlPayload() {
+  const [pnl, account] = await Promise.all([
+    getTodayRealizedPnl(),
+    getFuturesAccount(),
+  ]);
+  let ratchet = null;
+  try {
+    ratchet = await applyProfitRatchet(pnl);
+  } catch (err) {
+    console.error('Profit ratchet failed:', err.message);
+  }
+  let goalSync = null;
+  try {
+    goalSync = await syncCompoundGoalFromTodayPnl({ dailyPnl: pnl, account });
+    if (goalSync?.applied) {
+      console.log(
+        `Daily goal sync: ${goalSync.action} — today net ${goalSync.todayNet} vs target ${goalSync.target}`,
+      );
+    }
+  } catch (err) {
+    console.error('Daily goal sync failed:', err.message);
+  }
+  return {
+    ...pnl,
+    baseBalance: Number.isFinite(ratchet?.baseBalance) ? ratchet.baseBalance : null,
+    baseRatchet: ratchet,
+    goalSync,
+  };
+}
 
 async function cachedFetch(key, ttlSeconds, fetcher) {
   const cacheKey = `cache:${key}`;
@@ -140,6 +172,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'positions';
+    const fresh = searchParams.get('fresh') === '1' || searchParams.get('fresh') === 'true';
 
     if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
       return NextResponse.json({
@@ -165,12 +198,20 @@ export async function GET(request) {
       const minVol = parseInt(searchParams.get('minVol') || '20000000', 10);
       data = await cachedFetch(`topgainers:${limit}:${minVol}`, 60, () => getFuturesTopGainers({ limit, minQuoteVolume: minVol }));
     } else if (type === 'account') {
-      data = await cachedFetch('account', 3, () => getFuturesAccount());
+      data = fresh
+        ? await getFuturesAccount()
+        : await cachedFetch('account', 3, () => getFuturesAccount());
     } else if (type === 'dailyPnl') {
-      data = await cachedFetch('dailyPnl', 30, () => getTodayRealizedPnl());
+      // Today's realized + unrealized vs daily target → auto mark/undo compound goal.
+      // Also runs the profit ratchet (base balance floor growth).
+      data = fresh
+        ? await buildDailyPnlPayload()
+        : await cachedFetch('dailyPnl', 30, () => buildDailyPnlPayload());
     } else if (type === 'orders') {
       const symbol = searchParams.get('symbol');
-      data = await cachedFetch(`orders:${symbol || 'all'}`, 3, () => getFuturesOpenOrders(symbol));
+      data = fresh
+        ? await getFuturesOpenOrders(symbol)
+        : await cachedFetch(`orders:${symbol || 'all'}`, 3, () => getFuturesOpenOrders(symbol));
     } else if (type === 'storedOrders') {
       const symbol = searchParams.get('symbol');
       const limit = searchParams.get('limit') || '100';
@@ -181,7 +222,10 @@ export async function GET(request) {
     } else {
       // Full positions snapshot — the heaviest call. Cache 3s so 10 viewers
       // share one Binance fetch instead of each hitting the exchange.
-      data = await cachedFetch('snapshot', 3, () => loadFuturesSnapshot());
+      // ?fresh=1 skips Redis (after trades / WS-driven UI refresh).
+      data = fresh
+        ? await loadFuturesSnapshot()
+        : await cachedFetch('snapshot', 3, () => loadFuturesSnapshot());
     }
 
     const apiWeight = getApiWeight();

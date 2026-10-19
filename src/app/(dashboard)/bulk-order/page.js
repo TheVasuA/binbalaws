@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFetch, formatCurrency } from '@/lib/utils';
+import { requestPortfolioRefresh } from '@/lib/portfolioRefresh';
 
 // Lightweight TradingView advanced-chart embed (same approach as New Order).
 function TradingViewChart({ symbol, interval }) {
@@ -483,8 +484,9 @@ export default function BulkOrderPage() {
         type: 'success',
         text: `${reason ? reason + ' — ' : ''}Closed ${closed} position${closed === 1 ? '' : 's'} in one shot.`,
       });
-      refetchSnapshot();
-      refetchAccount();
+      requestPortfolioRefresh({ reason: 'bulkClose' });
+      refetchSnapshot(true);
+      refetchAccount(true);
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {
@@ -636,8 +638,9 @@ export default function BulkOrderPage() {
           ? `Filled ${filled}/${legs.length}. Failed: ${failedList.map((r) => `${r.symbol} (${r.error})`).join(', ')}`
           : `Bulk ${side === 'BUY' ? 'long' : 'short'} placed for ${filled} coins in one shot.`,
       });
-      refetchSnapshot();
-      refetchAccount();
+      requestPortfolioRefresh({ reason: 'bulkOpen' });
+      refetchSnapshot(true);
+      refetchAccount(true);
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatCurrency } from '@/lib/utils';
+import { COMPOUND_REFRESH_EVENT } from '@/lib/portfolioRefresh';
 
 export default function GoalTracker({ futuresAccount }) {
   const [completedTrades, setCompletedTrades] = useState([]);
@@ -28,26 +29,33 @@ export default function GoalTracker({ futuresAccount }) {
     }
   }, []);
 
-  // Load data from database
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const res = await fetch('/api/compound');
-        const data = await res.json();
-        if (data.startingBalance && data.startingBalance > 0) {
-          setSavedStartingBalance(data.startingBalance);
-        }
-        if (data.completedTrades && data.completedTrades.length > 0) {
-          setCompletedTrades(data.completedTrades);
-        }
-      } catch (error) {
-        console.error('Failed to load compound data:', error);
-      } finally {
-        setIsDbLoaded(true);
+  const reloadCompound = useCallback(async () => {
+    try {
+      const res = await fetch('/api/compound');
+      const data = await res.json();
+      if (data.startingBalance && data.startingBalance > 0) {
+        setSavedStartingBalance(data.startingBalance);
       }
-    };
-    loadData();
+      if (Array.isArray(data.completedTrades)) {
+        setCompletedTrades(data.completedTrades);
+      }
+    } catch (error) {
+      console.error('Failed to load compound data:', error);
+    } finally {
+      setIsDbLoaded(true);
+    }
   }, []);
+
+  useEffect(() => {
+    reloadCompound();
+    const onRefresh = () => reloadCompound();
+    window.addEventListener(COMPOUND_REFRESH_EVENT, onRefresh);
+    const poll = setInterval(reloadCompound, 15_000);
+    return () => {
+      window.removeEventListener(COMPOUND_REFRESH_EVENT, onRefresh);
+      clearInterval(poll);
+    };
+  }, [reloadCompound]);
 
   // Save starting balance when futures data loads and no saved balance exists
   useEffect(() => {

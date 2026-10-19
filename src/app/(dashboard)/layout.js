@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import { NotificationProvider } from '@/lib/notify';
 import { useWallpaper } from '@/lib/theme';
+import { COMPOUND_REFRESH_EVENT } from '@/lib/portfolioRefresh';
 
 export default function DashboardLayout({ children }) {
   const [progressData, setProgressData] = useState(null);
@@ -11,7 +12,6 @@ export default function DashboardLayout({ children }) {
   // Load + apply the saved wallpaper (image + opacity) behind the app.
   useWallpaper();
 
-  // Fetch progress data ONCE on initial load
   useEffect(() => {
     const loadProgressData = async () => {
       try {
@@ -79,6 +79,13 @@ export default function DashboardLayout({ children }) {
       }
     };
     loadProgressData();
+    const onCompoundRefresh = () => loadProgressData();
+    window.addEventListener(COMPOUND_REFRESH_EVENT, onCompoundRefresh);
+    const poll = setInterval(loadProgressData, 30_000);
+    return () => {
+      window.removeEventListener(COMPOUND_REFRESH_EVENT, onCompoundRefresh);
+      clearInterval(poll);
+    };
   }, []);
 
   return (

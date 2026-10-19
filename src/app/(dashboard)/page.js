@@ -66,6 +66,22 @@ export default function FuturesPage() {
   const todayTargetUsd = walletBalance * (compoundPercent / 100);
   const todayProfit = Math.max(0, todayNet); // for the target bar (>=0)
 
+  // ── Base Balance Protection (balance floor) ────────────────────────────────
+  // If overall balance (wallet + unrealized PnL) touches the configured floor
+  // while positions are open, force-close EVERYTHING (incl. 20x+) immediately.
+  // Settings decide on/off; the live value comes from the dailyPnl payload,
+  // which carries the floor after the profit ratchet (a % of today's realized
+  // profit is auto-added to the base balance server-side).
+  const settingsBase = Number(settings?.baseBalance) || 0;
+  const liveBase = Number(dailyPnl?.baseBalance);
+  const baseBalance = settingsBase > 0
+    ? (Number.isFinite(liveBase) && liveBase > 0 ? liveBase : settingsBase)
+    : 0;
+  const equity = Number(mergedAccount?.totalMarginBalance) || 0;
+  const baseBuffer = equity - baseBalance;
+  const baseBreached = loaded && baseBalance > 0 && openPositionCount > 0 && equity <= baseBalance;
+  const baseNear = !baseBreached && baseBalance > 0 && openPositionCount > 0 && baseBuffer < baseBalance * 0.1;
+
   // ── Notifications ──────────────────────────────────────────────────────────
   const { notify } = useNotify();
   const notifiedRef = useRef({
@@ -74,9 +90,68 @@ export default function FuturesPage() {
     posLimit: false,
     wsDown: false,
     autoClosed: false,
+    baseGuard: false,
+    ratchetAt: null,
   });
 
   const autoCloseOnBreaker = Number(settings?.autoCloseOnBreaker) === 1;
+
+  // Profit ratchet raised the floor → one toast per credit.
+  const ratchet = dailyPnl?.baseRatchet;
+  useEffect(() => {
+    const at = ratchet?.lastAddedAt || null;
+    if (!at) return;
+    if (notifiedRef.current.ratchetAt === null) {
+      // First payload after load: remember it, don't re-announce old credits.
+      notifiedRef.current.ratchetAt = at;
+      return;
+    }
+    if (notifiedRef.current.ratchetAt === at) return;
+    notifiedRef.current.ratchetAt = at;
+    notify({
+      level: 'success',
+      title: `🛡 Base balance raised to ${formatCurrency(ratchet.baseBalance)}`,
+      message: `+${formatCurrency(ratchet.lastAdd)} (${ratchet.percent}% of today's new profit) · +${formatCurrency(ratchet.addedToday)} added today`,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratchet?.lastAddedAt]);
+
+  // Balance floor hit → exit all positions, no confirmation.
+  useEffect(() => {
+    if (!baseBreached || notifiedRef.current.baseGuard) {
+      if (!baseBreached) notifiedRef.current.baseGuard = false;
+      return;
+    }
+    notifiedRef.current.baseGuard = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/futures', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'closeAll', includeHuge: true }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error || 'Failed to close');
+        const { closed = 0, failed = 0 } = json?.data || {};
+        notify({
+          level: failed > 0 ? 'warning' : 'danger',
+          beep: true,
+          sticky: true,
+          title: `🛡 Base balance protected — exited all positions`,
+          message: `Overall balance ${formatCurrency(equity)} reached your floor of ${formatCurrency(baseBalance)}. Closed ${closed}${failed ? ` · failed ${failed}` : ''}.`,
+        });
+        if (failed > 0) {
+          // Let the guard retry on the next tick for any leg that did not close.
+          setTimeout(() => { notifiedRef.current.baseGuard = false; }, 5000);
+        }
+        refetchPositions();
+      } catch (err) {
+        notify({ level: 'danger', beep: true, sticky: true, title: 'Base balance exit failed', message: err.message });
+        setTimeout(() => { notifiedRef.current.baseGuard = false; }, 5000);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseBreached]);
 
   // 8% daily-loss alarm (beep + danger toast). Fires once per crossing.
   useEffect(() => {
@@ -231,6 +306,24 @@ export default function FuturesPage() {
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
                       <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
                       ⚠ Nearing daily loss limit (−{formatCurrency(todayLoss)} / {formatCurrency(dailyLossLimitUsd)})
+                    </span>
+                  )}
+                  {baseBalance > 0 && (
+                    <span
+                      title="Base Balance Protection: all positions exit when overall balance touches this floor"
+                      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                        baseBreached
+                          ? 'bg-red-600/30 text-red-300 border-red-500/60 animate-pulse'
+                          : baseNear
+                            ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40'
+                            : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${baseBreached ? 'bg-red-400' : baseNear ? 'bg-yellow-400' : 'bg-emerald-400'}`} />
+                      🛡 Floor {formatCurrency(baseBalance)}
+                      {openPositionCount > 0 && (
+                        <span className="opacity-80">· room {formatCurrency(Math.max(baseBuffer, 0))}</span>
+                      )}
                     </span>
                   )}
                 </div>

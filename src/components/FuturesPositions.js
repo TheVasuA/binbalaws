@@ -1,6 +1,8 @@
 
 'use client';
 
+import { requestPortfolioRefresh } from '@/lib/portfolioRefresh';
+
 import { useState, Fragment } from 'react';
 import { formatCurrency, formatCurrencyFull, formatPercent, getChangeColor } from '@/lib/utils';
 
@@ -112,6 +114,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Failed to update risk');
       setEditRiskSymbol(null);
+      requestPortfolioRefresh({ reason: 'updateRisk', symbol: position.symbol });
       if (onRefresh) onRefresh();
     } catch (err) {
       setEditRiskError(err.message);
@@ -157,6 +160,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
       if (!response.ok || !data.success) throw new Error(data.error || 'Failed to close position');
       setPartialCloseSymbol(null);
       setExitLimitPrice('');
+      requestPortfolioRefresh({ reason: 'closePosition', symbol: position.symbol });
       if (onRefresh) onRefresh();
     } catch (err) {
       setPartialError(err.message);
@@ -189,6 +193,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
       }
 
       alert(`Position closed successfully!`);
+      requestPortfolioRefresh({ reason: 'closePosition', symbol: position.symbol });
       if (onRefresh) onRefresh();
     } catch (error) {
       alert(`Error: ${error.message}`);
@@ -221,6 +226,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Failed to cancel order');
       }
+      requestPortfolioRefresh({ reason: 'cancelOrder', symbol: order.symbol });
       if (onRefresh) onRefresh();
     } catch (error) {
       alert(`Error: ${error.message}`);

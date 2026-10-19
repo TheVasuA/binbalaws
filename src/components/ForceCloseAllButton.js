@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useNotify } from '@/lib/notify';
+import { requestPortfolioRefresh } from '@/lib/portfolioRefresh';
 
 /**
  * Close-all button. Two modes:
@@ -37,6 +38,7 @@ export default function ForceCloseAllButton({ zero = false, onDone, className = 
       if (!res.ok || !json.success) throw new Error(json.error || 'Failed to close');
 
       const { closed = 0, skipped = 0, failed = 0 } = json.data || {};
+      requestPortfolioRefresh({ reason: 'closeAll' });
       notify({
         level: failed > 0 ? 'warning' : 'success',
         beep: true,

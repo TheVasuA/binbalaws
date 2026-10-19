@@ -1,25 +1,23 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { PORTFOLIO_REFRESH_EVENT, COMPOUND_REFRESH_EVENT } from '@/lib/portfolioRefresh';
 
 /**
  * Live Futures Portfolio Hook
  *
  * How it works:
- *   - Full snapshot (positions + SL/TP algo orders) ONCE on load, then every 5 min
- *   - Public @miniTicker WebSocket → live price → live PnL / portfolio value
- *   - Authenticated User Data Stream → LIVE wallet balance + open orders (pushed
- *     instantly by Binance via ACCOUNT_UPDATE / ORDER_TRADE_UPDATE)
- *   - A 60s REST poll remains only as a fallback if a stream is briefly down
- *
- * SL/TP stay on the slow 5-min cycle (they rarely change and the algo-order
- * fetch is heavier).
+ *   - Full snapshot (positions + SL/TP algo orders) on load, on every order
+ *     event (User Data Stream), when another page calls requestPortfolioRefresh(),
+ *     and every 45s as a safety net
+ *   - Public SSE price stream → live PnL / portfolio value
+ *   - Authenticated User Data Stream → wallet balance + position deltas; any
+ *     ORDER_TRADE_UPDATE triggers a debounced fresh snapshot (SL/TP live)
  */
 
-const REST_REFRESH_MS = 5 * 60_000;  // 5 min — positions + SL/TP (algo orders)
-const BALANCE_REFRESH_MS = 5_000;    // 5s — wallet balance + open orders (also
-                                     // covers networks where the User Data Stream
-                                     // WS connects but delivers no frames)
+const REST_REFRESH_MS = 45_000;      // safety-net full snapshot
+const BALANCE_REFRESH_MS = 5_000;    // wallet + classic open orders fallback
+const WS_SNAPSHOT_DEBOUNCE_MS = 400; // coalesce burst WS events into one fetch
 
 const WS_URL = process.env.NEXT_PUBLIC_BINANCE_TESTNET === 'true'
   ? 'wss://stream.binancefuture.com'
@@ -46,54 +44,94 @@ export function useBackendFuturesStream() {
 
   const wsRef = useRef(null); // holds the price EventSource (SSE)
   const symbolsRef = useRef('');
+  const wsSnapshotTimer = useRef(null);
+  const followUpTimers = useRef([]);
 
-  // ─── REST: fetch account data ─────────────────────────────────────────────
-  const fetchAccount = useCallback(async () => {
+  const applyDailyPnlPayload = useCallback((data) => {
+    if (!data) return;
+    setDailyPnl(data);
+    if (data.goalSync?.applied && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(COMPOUND_REFRESH_EVENT));
+    }
+  }, []);
+
+  const applySnapshotData = useCallback((d) => {
+    setAccount(d.account || null);
+    setOpenOrders(d.openOrders || []);
+    setError(null);
+    setLoaded(true);
+
+    fetch('/api/futures?type=dailyPnl&fresh=1')
+      .then((r) => r.json())
+      .then((j) => { if (j.success && j.data) applyDailyPnlPayload(j.data); })
+      .catch(() => { /* ignore */ });
+
+    if (d.positions) {
+      setPositions((prev) => {
+        const markBySymbol = new Map(prev.map((p) => [p.symbol, p.markPrice]));
+        return d.positions.map((p) => {
+          const mark = markBySymbol.get(p.symbol);
+          const entryPrice = parseFloat(p.entryPrice || 0);
+          const positionAmt = Math.abs(parseFloat(p.positionAmt || 0));
+          const side = p.side || (parseFloat(p.positionAmt) > 0 ? 'LONG' : 'SHORT');
+          const markPrice = Number.isFinite(mark) && mark > 0
+            ? mark
+            : parseFloat(p.markPrice || 0);
+          const unrealizedProfit = Number.isFinite(mark) && mark > 0
+            ? calcPnl(side, positionAmt, entryPrice, mark)
+            : parseFloat(p.unrealizedProfit || 0);
+          return {
+            ...p,
+            positionAmt,
+            entryPrice,
+            markPrice,
+            unrealizedProfit,
+            leverage: parseInt(p.leverage || 0, 10),
+            side,
+          };
+        });
+      });
+    }
+  }, [applyDailyPnlPayload]);
+
+  // ─── REST: full snapshot (positions + SL/TP algo orders) ─────────────────
+  const fetchAccount = useCallback(async ({ fresh = false } = {}) => {
     try {
-      const res = await fetch('/api/futures?type=positions');
+      const q = fresh ? '&fresh=1' : '';
+      const res = await fetch(`/api/futures?type=positions${q}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'API error');
-
-      const d = json.data;
-      setAccount(d.account || null);
-      setOpenOrders(d.openOrders || []);
-      setError(null);
-      setLoaded(true);
-
-      // Today's realized PnL for the circuit-breaker badge (best-effort).
-      fetch('/api/futures?type=dailyPnl')
-        .then((r) => r.json())
-        .then((j) => { if (j.success && j.data) setDailyPnl(j.data); })
-        .catch(() => { /* ignore */ });
-
-      // Update positions but preserve WS-updated markPrice if newer
-      if (d.positions) {
-        setPositions(d.positions.map(p => ({
-          ...p,
-          positionAmt: Math.abs(parseFloat(p.positionAmt || 0)),
-          entryPrice: parseFloat(p.entryPrice || 0),
-          markPrice: parseFloat(p.markPrice || 0),
-          unrealizedProfit: parseFloat(p.unrealizedProfit || 0),
-          leverage: parseInt(p.leverage || 0),
-          side: p.side || (parseFloat(p.positionAmt) > 0 ? 'LONG' : 'SHORT'),
-        })));
-      }
+      applySnapshotData(json.data);
     } catch (err) {
       console.error('[REST] Fetch error:', err.message);
       setError(err.message);
     }
-  }, []);
+  }, [applySnapshotData]);
+
+  const scheduleFreshSnapshot = useCallback((withFollowUps = false) => {
+    if (wsSnapshotTimer.current) clearTimeout(wsSnapshotTimer.current);
+    wsSnapshotTimer.current = setTimeout(() => {
+      wsSnapshotTimer.current = null;
+      fetchAccount({ fresh: true });
+    }, WS_SNAPSHOT_DEBOUNCE_MS);
+
+    if (withFollowUps) {
+      followUpTimers.current.forEach(clearTimeout);
+      followUpTimers.current = [
+        setTimeout(() => fetchAccount({ fresh: true }), 800),
+        setTimeout(() => fetchAccount({ fresh: true }), 2200),
+      ];
+    }
+  }, [fetchAccount]);
 
   // ─── Light REST poll: wallet balance + open orders only ───────────────────
-  // Keeps live balance, total portfolio value and the pending-orders list fresh
-  // without re-fetching positions/SL-TP (which stay on the slow 5-min cycle).
   const fetchBalanceAndOrders = useCallback(async () => {
     try {
       const [accRes, ordRes, pnlRes] = await Promise.all([
-        fetch('/api/futures?type=account'),
-        fetch('/api/futures?type=orders'),
-        fetch('/api/futures?type=dailyPnl'),
+        fetch('/api/futures?type=account&fresh=1'),
+        fetch('/api/futures?type=orders&fresh=1'),
+        fetch('/api/futures?type=dailyPnl&fresh=1'),
       ]);
       const accJson = await accRes.json();
       const ordJson = await ordRes.json();
@@ -108,24 +146,35 @@ export function useBackendFuturesStream() {
       }
       // Today's realized PnL — drives the target / loss-limit bars.
       if (pnlJson.success && pnlJson.data) {
-        setDailyPnl(pnlJson.data);
+        applyDailyPnlPayload(pnlJson.data);
       }
       setError(null);
     } catch (err) {
       console.error('[REST balance] Fetch error:', err.message);
     }
-  }, []);
+  }, [applyDailyPnlPayload]);
 
-  // ─── Full snapshot once on load, then every 5 minutes (positions + SL/TP) ──
+  // ─── Full snapshot on load + safety net poll ─────────────────────────────
   useEffect(() => {
-    fetchAccount(); // immediate first fetch on browser load
-    const id = setInterval(fetchAccount, REST_REFRESH_MS);
+    fetchAccount({ fresh: true });
+    const id = setInterval(() => fetchAccount({ fresh: false }), REST_REFRESH_MS);
     return () => clearInterval(id);
   }, [fetchAccount]);
 
+  const scheduleFreshRef = useRef(scheduleFreshSnapshot);
+  scheduleFreshRef.current = scheduleFreshSnapshot;
+
+  // Other pages (New Order, close, SL/TP) signal an immediate fresh pull.
+  useEffect(() => {
+    const onRefresh = () => scheduleFreshSnapshot(true);
+    window.addEventListener(PORTFOLIO_REFRESH_EVENT, onRefresh);
+    return () => {
+      window.removeEventListener(PORTFOLIO_REFRESH_EVENT, onRefresh);
+      followUpTimers.current.forEach(clearTimeout);
+    };
+  }, [scheduleFreshSnapshot]);
+
   // ─── Balance + orders safety refresh ──────────────────────────────────────
-  // The User Data Stream (below) pushes balance/orders live. This slow poll is
-  // only a fallback in case the stream is briefly down; it runs every 60s.
   useEffect(() => {
     if (!account) return; // wait for the first full snapshot
     const id = setInterval(fetchBalanceAndOrders, BALANCE_REFRESH_MS);
@@ -234,7 +283,7 @@ export function useBackendFuturesStream() {
 
     async function fetchOrdersNow() {
       try {
-        const res = await fetch('/api/futures?type=orders');
+        const res = await fetch('/api/futures?type=orders&fresh=1');
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) setOpenOrders(json.data);
       } catch { /* ignore */ }
@@ -313,12 +362,14 @@ export function useBackendFuturesStream() {
               });
               return [...map.values()];
             });
+            scheduleFreshRef.current(false);
           }
         }
 
-        // Live open-orders list on any order lifecycle event.
+        // Any order lifecycle → refresh pending orders + full snapshot (SL/TP).
         if (msg.e === 'ORDER_TRADE_UPDATE') {
           fetchOrdersNow();
+          scheduleFreshRef.current(false);
         }
       };
 
@@ -355,6 +406,6 @@ export function useBackendFuturesStream() {
     error,
     loaded,
     dailyPnl,
-    refetch: fetchAccount,
+    refetch: () => fetchAccount({ fresh: true }),
   };
 }

@@ -7,6 +7,10 @@ const NotifyContext = createContext(null);
 let _id = 0;
 const nextId = () => ++_id;
 
+/** How long the post-order alert beeps (unless dismissed early). */
+export const ORDER_ALERT_DURATION_MS = 2 * 60 * 1000;
+const ORDER_BEEP_INTERVAL_MS = 2800;
+
 // ── Alarm beep via Web Audio API (no external file, works offline) ──────────
 function playBeep({ times = 3, freq = 880, gap = 220 } = {}) {
   if (typeof window === 'undefined') return;
@@ -39,7 +43,35 @@ function playBeep({ times = 3, freq = 880, gap = 220 } = {}) {
  */
 export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([]);
+  const [orderAlert, setOrderAlert] = useState(null);
   const timers = useRef({});
+  const orderAlertTimers = useRef({ beep: null, end: null });
+
+  const stopOrderAlert = useCallback(() => {
+    if (orderAlertTimers.current.beep) {
+      clearInterval(orderAlertTimers.current.beep);
+      orderAlertTimers.current.beep = null;
+    }
+    if (orderAlertTimers.current.end) {
+      clearTimeout(orderAlertTimers.current.end);
+      orderAlertTimers.current.end = null;
+    }
+    setOrderAlert(null);
+  }, []);
+
+  /** After a successful new order: beep every ~2.8s for up to 2 minutes, with a Close control. */
+  const startOrderAlert = useCallback(({ title, message }) => {
+    stopOrderAlert();
+    setOrderAlert({
+      title: title || 'Order placed',
+      message: message || '',
+      startedAt: Date.now(),
+    });
+    const beepOnce = () => playBeep({ times: 3, freq: 920, gap: 180 });
+    beepOnce();
+    orderAlertTimers.current.beep = setInterval(beepOnce, ORDER_BEEP_INTERVAL_MS);
+    orderAlertTimers.current.end = setTimeout(stopOrderAlert, ORDER_ALERT_DURATION_MS);
+  }, [stopOrderAlert]);
 
   const dismiss = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -64,12 +96,18 @@ export function NotificationProvider({ children }) {
 
   useEffect(() => {
     const t = timers.current;
-    return () => { Object.values(t).forEach(clearTimeout); };
-  }, []);
+    return () => {
+      Object.values(t).forEach(clearTimeout);
+      stopOrderAlert();
+    };
+  }, [stopOrderAlert]);
 
   return (
-    <NotifyContext.Provider value={{ notify, dismiss }}>
+    <NotifyContext.Provider value={{ notify, dismiss, startOrderAlert, stopOrderAlert }}>
       {children}
+      {orderAlert && (
+        <OrderAlertBanner alert={orderAlert} onClose={stopOrderAlert} />
+      )}
       <ToastStack toasts={toasts} onDismiss={dismiss} />
     </NotifyContext.Provider>
   );
@@ -78,7 +116,46 @@ export function NotificationProvider({ children }) {
 export function useNotify() {
   const ctx = useContext(NotifyContext);
   // Fallback no-op if used outside the provider.
-  return ctx || { notify: () => {}, dismiss: () => {} };
+  return ctx || {
+    notify: () => {},
+    dismiss: () => {},
+    startOrderAlert: () => {},
+    stopOrderAlert: () => {},
+  };
+}
+
+function OrderAlertBanner({ alert, onClose }) {
+  return (
+    <div
+      className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] w-[92%] max-w-lg pointer-events-auto"
+      role="alertdialog"
+      aria-labelledby="order-alert-title"
+    >
+      <div className="rounded-xl border-2 border-green-500/70 bg-gray-900/95 backdrop-blur-md shadow-2xl p-4 animate-pulse">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl leading-none" aria-hidden>🔔</span>
+          <div className="flex-1 min-w-0">
+            <p id="order-alert-title" className="text-base font-bold text-green-300">
+              {alert.title}
+            </p>
+            {alert.message && (
+              <p className="text-sm text-gray-200 mt-1 break-words">{alert.message}</p>
+            )}
+            <p className="text-[11px] text-gray-500 mt-2">
+              Alert sound repeats for up to 2 minutes. Tap Close to stop immediately.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-semibold transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Toast stack UI (bottom of page) ─────────────────────────────────────────
