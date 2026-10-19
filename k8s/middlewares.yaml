@@ -1,0 +1,36 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: binbalaws
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: security-headers
+  namespace: binbalaws
+spec:
+  headers:
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    customFrameOptionsValue: SAMEORIGIN
+    contentTypeNosniff: true
+    browserXssFilter: true
+    referrerPolicy: strict-origin-when-cross-origin
+    permissionsPolicy: "geolocation=(), microphone=(), camera=()"
+---
+# The dashboard has no login of its own and can place Binance orders.
+# The `basic-auth` secret is created by deploy.sh (not stored in git).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: basic-auth
+  namespace: binbalaws
+spec:
+  basicAuth:
+    secret: basic-auth
+    removeHeader: true

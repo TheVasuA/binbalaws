@@ -1,0 +1,83 @@
+# Local order/audit DB (data/orders.json), previously the ./data bind mount.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+  namespace: binbalaws
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: microk8s-hostpath
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: binbalaws
+spec:
+  selector:
+    app: bala-app
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+# Single replica + Recreate: orders.json is a plain file with no locking,
+# so two pods must never write it at the same time.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bala-app
+  namespace: binbalaws
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bala-app
+  template:
+    metadata:
+      labels:
+        app: bala-app
+    spec:
+      containers:
+        - name: app
+          image: binbalaws
+          envFrom:
+            - secretRef:
+                name: binbalaws-env
+          env:
+            - name: NODE_ENV
+              value: production
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /favicon.ico
+              port: 3000
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /favicon.ico
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data

@@ -1,356 +1,242 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useFetch, formatCurrency } from '@/lib/utils';
-import { COMPOUND_REFRESH_EVENT } from '@/lib/portfolioRefresh';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Badge, Button, Callout, Card, CardBody, CardHeader, EmptyState, Menu, MenuItem, MenuSeparator, Page, PageHeader,
+  Progress, Skeleton, Stat, StatGrid, Table, Td, Th, THead, Tr, useConfirm,
+} from '@/components/ui';
+import { IconCheck, IconMore, IconRefresh, IconTarget, IconTrash, IconUndo, IconWallet } from '@/components/ui/icons';
+import { useAppData } from '@/components/providers/app-data';
+import { useFuturesStream } from '@/components/providers/futures-stream';
+import { useGoal } from '@/components/shell/goal-summary';
+import { dateTime, percent, usd } from '@/lib/format';
+import { useNotify } from '@/lib/notify';
+import { cn } from '@/lib/cn';
 
-export default function CompoundPage() {
-  const { data: futuresData, loading: futuresLoading, refetch } = useFetch('/api/futures', { refreshInterval: 5 * 60 * 1000 }); // 5 min
-  const [completedTrades, setCompletedTrades] = useState([]);
-  const [savedStartingBalance, setSavedStartingBalance] = useState(null);
-  const [isDbLoaded, setIsDbLoaded] = useState(false);
-  const [targetAmount] = useState(100000);
-  const [profitPercent] = useState(2);
-
-  const currentBalance = futuresData?.account?.totalWalletBalance || 0;
-
-  const saveToDatabase = useCallback(async (balance, trades) => {
-    try {
-      await fetch('/api/compound', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startingBalance: balance,
-          completedTrades: trades,
-        }),
-      });
-    } catch (error) {
-      console.error('Failed to save compound data:', error);
-    }
-  }, []);
-
-  const reloadCompound = useCallback(async () => {
-    try {
-      const res = await fetch('/api/compound');
-      const data = await res.json();
-      if (data.startingBalance && data.startingBalance > 0) {
-        setSavedStartingBalance(data.startingBalance);
-      }
-      if (Array.isArray(data.completedTrades)) {
-        setCompletedTrades(data.completedTrades);
-      }
-    } catch (error) {
-      console.error('Failed to load compound data:', error);
-    } finally {
-      setIsDbLoaded(true);
-    }
-  }, []);
+function MilestoneTable({ milestones, completed, records, rate }) {
+  const currentRef = useRef(null);
 
   useEffect(() => {
-    reloadCompound();
-    const onRefresh = () => reloadCompound();
-    window.addEventListener(COMPOUND_REFRESH_EVENT, onRefresh);
-    const poll = setInterval(reloadCompound, 15_000);
-    return () => {
-      window.removeEventListener(COMPOUND_REFRESH_EVENT, onRefresh);
-      clearInterval(poll);
-    };
-  }, [reloadCompound]);
-
-  useEffect(() => {
-    if (isDbLoaded && !futuresLoading && currentBalance > 0 && savedStartingBalance === null) {
-      setSavedStartingBalance(currentBalance);
-      saveToDatabase(currentBalance, completedTrades);
-    }
-  }, [currentBalance, savedStartingBalance, isDbLoaded, futuresLoading, saveToDatabase, completedTrades]);
-
-  const startingBalance = savedStartingBalance || currentBalance;
-
-  const generateMilestones = () => {
-    const milestones = [];
-    let balance = startingBalance || currentBalance;
-    let tradeNumber = 1;
-    
-    if (balance <= 0) return milestones;
-    
-    while (balance < targetAmount && tradeNumber <= 500) {
-      const profit = balance * (profitPercent / 100);
-      const newBalance = balance + profit;
-      
-      milestones.push({
-        trade: tradeNumber,
-        startBalance: balance,
-        profit: profit,
-        endBalance: newBalance,
-        completed: tradeNumber <= completedTrades.length,
-        completedAt: completedTrades[tradeNumber - 1]?.completedAt || null,
-      });
-      
-      balance = newBalance;
-      tradeNumber++;
-    }
-    
-    return milestones;
-  };
-
-  const milestones = generateMilestones();
-  const totalTrades = milestones.length;
-  const completedCount = completedTrades.length;
-  const progressPercent = totalTrades > 0 ? (completedCount / totalTrades) * 100 : 0;
-
-  const markTradeComplete = (tradeNumber) => {
-    if (tradeNumber === completedTrades.length + 1) {
-      const milestone = milestones[tradeNumber - 1];
-      const newTrades = [
-        ...completedTrades,
-        {
-          trade: tradeNumber,
-          startBalance: milestone.startBalance,
-          endBalance: milestone.endBalance,
-          profit: milestone.profit,
-          completedAt: new Date().toISOString(),
-        },
-      ];
-      setCompletedTrades(newTrades);
-      saveToDatabase(startingBalance, newTrades);
-    }
-  };
-
-  // Step back one trade — removes the last completed milestone (use after a
-  // loss or a mistaken "mark complete"). Returns to the previous goal step.
-  const undoLastTrade = () => {
-    if (completedTrades.length === 0) return;
-    const newTrades = completedTrades.slice(0, -1);
-    setCompletedTrades(newTrades);
-    saveToDatabase(startingBalance, newTrades);
-  };
-
-  const resetProgress = async () => {
-    if (confirm('Are you sure you want to reset all progress? This will set starting balance to your current futures balance.')) {
-      setCompletedTrades([]);
-      setSavedStartingBalance(currentBalance);
-      await saveToDatabase(currentBalance, []);
-    }
-  };
-
-  const setStartingBalanceNow = async () => {
-    if (currentBalance > 0) {
-      setSavedStartingBalance(currentBalance);
-      await saveToDatabase(currentBalance, completedTrades);
-    } else {
-      alert('Futures balance not loaded yet. Please wait and try again.');
-    }
-  };
-
-  const currentMilestone = milestones[completedCount] || null;
+    currentRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [completed]);
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">
-            Compound Trading Goal
-          </h1>
-          <p className="text-gray-400 mt-1">2% profit per trade to $100,000</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {completedCount > 0 && (
-            <button
-              onClick={undoLastTrade}
-              title="Go back one trade (after a loss)"
-              className="px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors"
-            >
-              ↩ Undo
-            </button>
-          )}
-          <button
-            onClick={resetProgress}
-            className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/30 transition-colors"
-          >
-            Reset
-          </button>
-        </div>
-      </div>
+    <Table className="max-h-[480px] overflow-y-auto">
+      <THead sticky>
+        <Th align="right" className="w-12">#</Th>
+        <Th align="right">Start</Th>
+        <Th align="right">Profit</Th>
+        <Th align="right">End</Th>
+        <Th className="hidden sm:table-cell">Status</Th>
+      </THead>
+      <tbody>
+        {milestones.map((m) => {
+          const done = m.trade <= completed;
+          const current = m.trade === completed + 1;
+          const at = records[m.trade - 1]?.completedAt;
+          return (
+            <Tr key={m.trade} ref={current ? currentRef : undefined} className={cn(current && 'bg-accent/5 hover:bg-accent/8')}>
+              <Td align="right" className={cn(done ? 'text-fg-subtle' : current ? 'font-semibold text-accent' : 'text-fg-muted')}>{m.trade}</Td>
+              <Td align="right" className={done ? 'text-fg-muted' : 'text-fg'}>{usd(m.startBalance)}</Td>
+              <Td align="right" className={done ? 'text-fg-muted' : 'text-pos'}>+{usd(m.profit)}</Td>
+              <Td align="right" className={done ? 'text-fg-muted' : 'text-fg'}>{usd(m.endBalance)}</Td>
+              <Td className="hidden sm:table-cell">
+                {done ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-fg-muted">
+                    <IconCheck size={13} className="text-pos" />
+                    {at ? dateTime(at) : 'Done'}
+                  </span>
+                ) : current ? (
+                  <Badge tone="accent">Next</Badge>
+                ) : (
+                  <span className="num text-xs text-fg-subtle">+{percent(rate, { decimals: 2 })}</span>
+                )}
+              </Td>
+            </Tr>
+          );
+        })}
+      </tbody>
+    </Table>
+  );
+}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-          <p className="text-gray-400 text-xs md:text-sm">Starting Balance</p>
-          <p className="text-lg md:text-xl font-bold text-white">
-            {formatCurrency(startingBalance)}
-          </p>
-          {startingBalance === 0 && currentBalance > 0 && (
-            <button
-              onClick={setStartingBalanceNow}
-              className="mt-2 text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
-            >
-              Set to {formatCurrency(currentBalance)}
-            </button>
-          )}
-        </div>
-        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-          <p className="text-gray-400 text-xs md:text-sm">Current Balance</p>
-          <p className="text-lg md:text-xl font-bold text-blue-400">
-            {futuresLoading ? 'Loading...' : formatCurrency(currentBalance)}
-          </p>
-        </div>
-        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-          <p className="text-gray-400 text-xs md:text-sm">Target</p>
-          <p className="text-lg md:text-xl font-bold text-green-400">
-            {formatCurrency(targetAmount)}
-          </p>
-        </div>
-        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-          <p className="text-gray-400 text-xs md:text-sm">Trades Remaining</p>
-          <p className="text-lg md:text-xl font-bold text-yellow-400">
-            {totalTrades - completedCount}
-          </p>
-        </div>
-      </div>
+export default function GoalPage() {
+  const { compound, saveCompound } = useAppData();
+  const { account, loaded } = useFuturesStream();
+  const goal = useGoal();
+  const confirm = useConfirm();
+  const { notify } = useNotify();
+  const [busy, setBusy] = useState(false);
 
-      {/* Progress Bar */}
-      <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700 mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-white font-medium">Progress</span>
-          <span className="text-gray-400 text-sm">
-            {completedCount} / {totalTrades} trades ({progressPercent.toFixed(1)}%)
-          </span>
+  const wallet = Number(account?.totalWalletBalance) || 0;
+  const records = useMemo(() => compound?.completedTrades || [], [compound]);
+  const lockedStart = Number(compound?.startingBalance) || 0;
+
+  // The ladder is anchored to the starting balance; lock it the first time a
+  // wallet balance is known so the milestones stop moving with the wallet.
+  const lockedRef = useRef(false);
+  useEffect(() => {
+    if (!compound || lockedStart > 0 || !(wallet > 0) || lockedRef.current) return;
+    lockedRef.current = true;
+    saveCompound({ startingBalance: wallet, completedTrades: records }).catch(() => {
+      lockedRef.current = false;
+    });
+  }, [compound, lockedStart, wallet, records, saveCompound]);
+
+  const persist = async (next, message) => {
+    setBusy(true);
+    try {
+      await saveCompound(next);
+      if (message) notify({ level: 'success', title: message });
+    } catch (err) {
+      notify({ level: 'danger', title: 'Could not save', message: err.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const markComplete = () => {
+    const m = goal.current;
+    if (!m) return;
+    persist(
+      {
+        startingBalance: goal.startBalance,
+        completedTrades: [
+          ...records.slice(0, goal.completed),
+          { trade: m.trade, startBalance: m.startBalance, endBalance: m.endBalance, profit: m.profit, completedAt: new Date().toISOString() },
+        ],
+      },
+      `Trade ${m.trade} marked complete`,
+    );
+  };
+
+  const undo = () => {
+    if (!goal.completed) return;
+    persist({ startingBalance: goal.startBalance, completedTrades: records.slice(0, goal.completed - 1) }, `Stepped back to trade ${goal.completed}`);
+  };
+
+  const rebase = async () => {
+    const ok = await confirm({
+      title: 'Re-anchor to current wallet?',
+      description: `The ladder will start from ${usd(wallet)} instead of ${usd(goal.startBalance)}. Completed steps are kept and the remaining milestones are recalculated.`,
+      confirmLabel: 'Re-anchor',
+    });
+    if (ok) persist({ startingBalance: wallet, completedTrades: records }, 'Starting balance updated');
+  };
+
+  const reset = async () => {
+    const ok = await confirm({
+      tone: 'danger',
+      title: 'Reset goal progress?',
+      description: `All ${goal.completed} completed steps are cleared and the ladder restarts from your current wallet of ${usd(wallet)}.`,
+      confirmLabel: 'Reset progress',
+    });
+    if (ok) persist({ startingBalance: wallet > 0 ? wallet : goal.startBalance, completedTrades: [] }, 'Goal progress reset');
+  };
+
+  const ready = compound && (lockedStart > 0 || loaded);
+  const achieved = goal.total > 0 && goal.completed >= goal.total;
+  const vsPlan = goal.current ? wallet - goal.current.startBalance : 0;
+
+  return (
+    <Page width="medium">
+      <PageHeader
+        title="Goal"
+        description={`Compound ${percent(goal.percent, { decimals: 2 })} per trade from ${usd(goal.startBalance, 0)} to ${usd(goal.target, 0)}.`}
+        actions={
+          <>
+            <Button variant="secondary" size="sm" onClick={undo} disabled={!goal.completed || busy}>
+              <IconUndo size={14} />
+              Undo step
+            </Button>
+            <Menu
+              trigger={(props) => (
+                <Button {...props} variant="secondary" size="icon" aria-label="More actions">
+                  <IconMore size={16} />
+                </Button>
+              )}
+            >
+              <MenuItem icon={IconRefresh} onSelect={rebase} disabled={!(wallet > 0) || busy} description="Recalculate from the current wallet">
+                Re-anchor start
+              </MenuItem>
+              <MenuSeparator />
+              <MenuItem icon={IconTrash} tone="danger" onSelect={reset} disabled={busy}>
+                Reset progress
+              </MenuItem>
+            </Menu>
+          </>
+        }
+      />
+
+      {!ready ? (
+        <div className="space-y-4">
+          <Skeleton className="h-20" />
+          <Skeleton className="h-40" />
+          <Skeleton className="h-80" />
         </div>
-        <div className="w-full bg-gray-700 rounded-full h-4">
-          <div
-            className="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-500"
-            style={{ width: `${progressPercent}%` }}
+      ) : !goal.total ? (
+        <Card>
+          <EmptyState
+            icon={IconTarget}
+            title="No ladder to show"
+            description={
+              goal.startBalance >= goal.target
+                ? `Your starting balance already meets the ${usd(goal.target, 0)} target. Raise the target in the admin panel.`
+                : 'A starting balance is needed to build the ladder. It is taken from your futures wallet once it loads.'
+            }
           />
-        </div>
-      </div>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          <StatGrid className="lg:grid-cols-4">
+            <Stat label="Starting balance" value={usd(goal.startBalance)} sub={compound?.updatedAt ? `Saved ${dateTime(compound.updatedAt)}` : undefined} />
+            <Stat label="Wallet now" value={wallet > 0 ? usd(wallet) : '—'} sub={goal.current && wallet > 0 ? `${vsPlan >= 0 ? '+' : '−'}${usd(Math.abs(vsPlan))} vs plan` : undefined} tone={wallet > 0 && goal.current ? (vsPlan >= 0 ? 'pos' : 'neg') : 'default'} />
+            <Stat label="Target" value={usd(goal.target, 0)} />
+            <Stat label="Steps remaining" value={goal.remaining} sub={`${goal.completed} of ${goal.total} done`} />
+          </StatGrid>
 
-      {/* Current Trade */}
-      {currentMilestone && (
-        <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl p-4 md:p-6 border border-blue-500/50 mb-6">
-          <h2 className="text-lg font-semibold text-white mb-3">
-            🎯 Current Trade #{currentMilestone.trade}
-          </h2>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <p className="text-gray-400 text-xs">Start</p>
-              <p className="text-white font-medium">{formatCurrency(currentMilestone.startBalance)}</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-xs">Target Profit</p>
-              <p className="text-green-400 font-medium">+{formatCurrency(currentMilestone.profit)}</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-xs">End Balance</p>
-              <p className="text-blue-400 font-medium">{formatCurrency(currentMilestone.endBalance)}</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => markTradeComplete(currentMilestone.trade)}
-              className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition-colors"
-            >
-              ✓ Mark Trade #{currentMilestone.trade} Complete
-            </button>
-            {completedCount > 0 && (
-              <button
-                onClick={undoLastTrade}
-                title={`Undo trade #${completedCount} (go back after a loss)`}
-                className="px-4 py-3 bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/30 font-semibold rounded-lg transition-colors"
-              >
-                ↩ Undo #{completedCount}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Completed Message */}
-      {completedCount >= totalTrades && totalTrades > 0 && (
-        <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl p-6 border border-green-500/50 mb-6 text-center">
-          <div className="text-5xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-green-400 mb-2">Goal Achieved!</h2>
-          <p className="text-gray-300">
-            You&apos;ve reached {formatCurrency(targetAmount)} through compound trading!
-          </p>
-        </div>
-      )}
-
-      {/* Trade Milestones */}
-      <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
-        <div className="p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-white">Trade Milestones</h2>
-        </div>
-        
-        <div className="max-h-96 overflow-y-auto">
-          {milestones.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              Loading balance data...
-            </div>
+          {achieved ? (
+            <Callout tone="success" title="Goal reached">
+              All {goal.total} steps are complete. Set a new target in the admin panel to keep compounding.
+            </Callout>
           ) : (
-            <div className="divide-y divide-gray-700">
-              {milestones.map((milestone) => (
-                <div
-                  key={milestone.trade}
-                  className={`p-3 md:p-4 flex items-center gap-3 ${
-                    milestone.trade === completedCount + 1
-                      ? 'bg-blue-500/10'
-                      : milestone.completed
-                      ? 'bg-green-500/5'
-                      : ''
-                  }`}
-                >
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      milestone.completed
-                        ? 'bg-green-500 text-white'
-                        : milestone.trade === completedCount + 1
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-700 text-gray-400'
-                    }`}
-                  >
-                    {milestone.completed ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <span className="text-sm font-medium">{milestone.trade}</span>
-                    )}
+            <Card>
+              <CardBody className="space-y-4">
+                <div>
+                  <div className="mb-2 flex items-baseline justify-between text-xs">
+                    <span className="font-medium text-fg-muted">Overall progress</span>
+                    <span className="num text-fg-muted">{goal.progress.toFixed(1)}%</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-white font-medium">Trade #{milestone.trade}</span>
-                      {milestone.completed && (
-                        <span className="text-green-400 text-xs">✓ Completed</span>
-                      )}
-                    </div>
-                    <div className="text-gray-400 text-sm">
-                      {formatCurrency(milestone.startBalance)} → {formatCurrency(milestone.endBalance)}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-green-400 font-medium">
-                      +{formatCurrency(milestone.profit)}
-                    </div>
-                    <div className="text-gray-500 text-xs">+{profitPercent}%</div>
-                  </div>
+                  <Progress value={goal.progress} />
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
 
-      <div className="mt-6 text-center text-gray-500 text-sm">
-        <p>Compound formula: Each trade adds {profitPercent}% to your balance</p>
-        <p className="mt-1">
-          {startingBalance > 0 && (
-            <>
-              {formatCurrency(startingBalance)} × (1.02)^{totalTrades} = {formatCurrency(targetAmount)}
-            </>
+                <div className="flex flex-col gap-4 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="grid grid-cols-3 gap-6">
+                    <Stat size="sm" label={`Step ${goal.current.trade}`} value={usd(goal.current.startBalance)} sub="Start" />
+                    <Stat size="sm" label="Profit target" value={`+${usd(goal.current.profit)}`} tone="pos" sub={`+${percent(goal.percent, { decimals: 2 })}`} />
+                    <Stat size="sm" label="End balance" value={usd(goal.current.endBalance)} sub="After this step" />
+                  </div>
+                  <Button variant="buy" onClick={markComplete} loading={busy} className="sm:w-auto">
+                    <IconCheck size={15} />
+                    Mark step {goal.current.trade} complete
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
           )}
-        </p>
-      </div>
-    </div>
+
+          {!(wallet > 0) && loaded && (
+            <Callout tone="warn" title="Wallet balance unavailable">
+              <span className="inline-flex items-center gap-1.5"><IconWallet size={13} /> Re-anchoring and reset need a live wallet balance.</span>
+            </Callout>
+          )}
+
+          <Card>
+            <CardHeader title="Milestones" description={`${goal.total} steps of ${percent(goal.percent, { decimals: 2 })} each.`} />
+            <MilestoneTable milestones={goal.milestones} completed={goal.completed} records={records} rate={goal.percent} />
+          </Card>
+        </div>
+      )}
+    </Page>
   );
 }

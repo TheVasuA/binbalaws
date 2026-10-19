@@ -10,8 +10,7 @@
 //   4. If aggregate PnL >= +targetUsdt or <= -stopUsdt, closes every leg with a
 //      reduce-only market order and clears the basket from Redis.
 //
-// This makes the auto-exit independent of any open browser tab — the whole
-// point of running it on your own VPS.
+// Also enforces base balance floor, profit ratchet, and daily goal sync 24/7.
 //
 // Env required (same as the Next.js app — load via .env):
 //   BINANCE_API_KEY, BINANCE_API_SECRET, BINANCE_TESTNET
@@ -32,6 +31,7 @@ import {
   listActiveBaskets,
   updateBasket,
   removeBasket,
+  writeWatcherHeartbeat,
 } from '../src/lib/bulk-basket-db.js';
 import {
   getBaseBalanceSetting,
@@ -42,20 +42,13 @@ import {
 import { syncCompoundGoalFromTodayPnl } from '../src/lib/daily-goal-sync.js';
 
 const POLL_MS = Number(process.env.BULK_WATCHER_POLL_MS) || 3000;
-// How often to re-read the base-balance setting from Redis (it rarely changes,
-// so don't pay a Redis round-trip on every tick).
 const SETTINGS_REFRESH_MS = 15_000;
-// How often to run the profit ratchet (the income endpoint is heavy — weight 30).
 const RATCHET_INTERVAL_MS = Number(process.env.BULK_WATCHER_RATCHET_MS) || 30_000;
 
 function log(...args) {
   console.log(new Date().toISOString(), '[bulk-watcher]', ...args);
 }
 
-// ── Base Balance Protection (balance floor) ──────────────────────────────────
-// If equity (wallet + unrealized PnL) touches the configured floor while any
-// position is open, close EVERYTHING (including 20x+) immediately. Runs here so
-// the protection is live 24/7 even with no browser open.
 let cachedBaseBalance = 0;
 let cachedBaseBalanceAt = 0;
 
@@ -74,9 +67,6 @@ async function getBaseBalanceCached() {
   return cachedBaseBalance;
 }
 
-// ── Profit ratchet ───────────────────────────────────────────────────────────
-// Every RATCHET_INTERVAL_MS, credit the configured % of today's new realized
-// profit to the base balance (e.g. +$100 profit at 20% → floor 5000 → 5020).
 let lastRatchetAt = 0;
 
 async function profitRatchetTick(baseBalance) {
@@ -98,7 +88,6 @@ async function profitRatchetTick(baseBalance) {
     if (result?.applied) {
       log(`PROFIT RATCHET: today's realized PnL ${Number(pnl.realizedPnl).toFixed(2)} → ` +
           `+${result.added} (${result.percent}%) → base balance ${result.previousBaseBalance} → ${result.baseBalance}.`);
-      // Use the raised floor immediately instead of waiting for the next refresh.
       cachedBaseBalance = result.baseBalance;
     }
   } catch (err) {
@@ -106,7 +95,6 @@ async function profitRatchetTick(baseBalance) {
   }
 }
 
-// ── Daily compound goal (today's net PnL vs wallet × compound %) ─────────────
 let lastGoalSyncAt = 0;
 const GOAL_SYNC_INTERVAL_MS = 30_000;
 
@@ -137,7 +125,6 @@ async function dailyGoalSyncTick() {
   }
 }
 
-// Returns true when the guard fired (so the caller skips basket work this tick).
 async function baseBalanceTick(baseBalance, positions) {
   if (!(baseBalance > 0) || positions.length === 0) return false;
 
@@ -163,8 +150,6 @@ async function baseBalanceTick(baseBalance, positions) {
   return true;
 }
 
-// Compute the aggregate unrealized PnL for a basket from the live positions.
-// Matches by symbol AND side so a Binance-opened opposite position is ignored.
 function basketPnl(basket, positionsBySymbol) {
   let pnl = 0;
   const legs = [];
@@ -179,6 +164,12 @@ function basketPnl(basket, positionsBySymbol) {
 }
 
 async function tick() {
+  try {
+    await writeWatcherHeartbeat(POLL_MS);
+  } catch (err) {
+    log('Heartbeat write failed:', err.message);
+  }
+
   await dailyGoalSyncTick();
 
   let baskets = [];
@@ -195,10 +186,8 @@ async function tick() {
     log('Failed to read base balance setting:', err.message);
   }
 
-  // Nothing to watch this tick.
   if (baskets.length === 0 && !(baseBalance > 0)) return;
 
-  // Grow the floor from banked profit (throttled internally).
   await profitRatchetTick(baseBalance);
   baseBalance = cachedBaseBalance || baseBalance;
 
@@ -210,8 +199,6 @@ async function tick() {
     return;
   }
 
-  // Balance floor first — if it fires, every position is already being closed,
-  // so skip basket handling until the next tick sees the fresh state.
   if (await baseBalanceTick(baseBalance, positions)) return;
 
   if (baskets.length === 0) return;
@@ -219,12 +206,11 @@ async function tick() {
   const positionsBySymbol = new Map(positions.map((p) => [p.symbol, p]));
 
   for (const basket of baskets) {
-    if (basket.status === 'closing') continue; // already being closed
-    if (basket.armed === false) continue;      // disarmed by the user
+    if (basket.status === 'closing') continue;
+    if (basket.armed === false) continue;
 
     const { pnl, openLegs } = basketPnl(basket, positionsBySymbol);
 
-    // No legs of this basket are open anymore → nothing to manage, clean up.
     if (openLegs.length === 0) {
       log(`Basket ${basket.id} has no open legs left — removing.`);
       try { await removeBasket(basket.id); } catch { /* ignore */ }
@@ -243,18 +229,14 @@ async function tick() {
       : `stop -${stop} hit (PnL ${pnl.toFixed(2)})`;
     log(`Basket ${basket.id} [${basket.side}] ${openLegs.join(',')} — ${reason}. Closing all.`);
 
-    // Mark closing first so a slow close doesn't double-fire on the next tick.
     try { await updateBasket(basket.id, { status: 'closing' }); } catch { /* ignore */ }
 
     try {
       const result = await closePositionsBySymbols(openLegs);
       log(`Basket ${basket.id} closed: ${result.closed} ok, ${result.failed} failed.`);
-      // Remove the basket regardless — any failed legs will be reconciled on the
-      // next tick (they either stay open with no basket, or are already gone).
       await removeBasket(basket.id);
     } catch (err) {
       log(`Basket ${basket.id} close FAILED:`, err.message);
-      // Re-arm so the next tick retries.
       try { await updateBasket(basket.id, { status: 'active' }); } catch { /* ignore */ }
     }
   }
@@ -273,8 +255,6 @@ async function main() {
   log(`Started. Polling every ${POLL_MS}ms.`,
     process.env.BINANCE_TESTNET === 'true' ? '(TESTNET)' : '(LIVE)');
 
-  // Simple sequential loop: never overlap ticks, and never crash the process
-  // on a single failed cycle.
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {

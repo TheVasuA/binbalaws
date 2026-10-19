@@ -1,104 +1,19 @@
-'use client';
+import { getAppConfig, getPortfolioSettings } from '@/lib/app-config';
+import { DashboardShell } from '@/components/shell/dashboard-shell';
+import { MaintenanceScreen } from '@/components/shell/maintenance';
 
-import { useState, useEffect } from 'react';
-import Navbar from '@/components/Navbar';
-import { NotificationProvider } from '@/lib/notify';
-import { useWallpaper } from '@/lib/theme';
-import { COMPOUND_REFRESH_EVENT } from '@/lib/portfolioRefresh';
+export const dynamic = 'force-dynamic';
 
-export default function DashboardLayout({ children }) {
-  const [progressData, setProgressData] = useState(null);
+export default async function DashboardLayout({ children }) {
+  const [config, settings] = await Promise.all([getAppConfig(), getPortfolioSettings()]);
 
-  // Load + apply the saved wallpaper (image + opacity) behind the app.
-  useWallpaper();
-
-  useEffect(() => {
-    const loadProgressData = async () => {
-      try {
-        const [goalRes, futuresRes] = await Promise.all([
-          fetch('/api/compound'),
-          fetch('/api/futures?type=positions')
-        ]);
-        const goalData = await goalRes.json();
-        const futuresData = await futuresRes.json();
-        
-        const currentBalance = (futuresData.account?.totalWalletBalance || 0) + (futuresData.account?.totalUnrealizedProfit || 0);
-        const startingBalance = goalData?.startingBalance || futuresData.account?.totalWalletBalance || currentBalance || 1000;
-        const completedTrades = goalData?.completedTrades?.length || 0;
-        const targetAmount = 100000;
-
-        // Calculate total trades needed
-        let balance = startingBalance > 0 ? startingBalance : 1000;
-        let totalTrades = 0;
-        while (balance < targetAmount && totalTrades < 500) {
-          balance *= 1.02;
-          totalTrades++;
-        }
-        
-        // Calculate progress based on current balance vs target
-        const balanceProgress = Math.min(((currentBalance - startingBalance) / (targetAmount - startingBalance)) * 100, 100);
-        const tradesProgress = totalTrades > 0 ? (completedTrades / totalTrades) * 100 : 0;
-        
-        // Use the higher of the two progress measures
-        const displayProgress = Math.max(balanceProgress, tradesProgress, 0);
-
-        console.log('Progress data:', { currentBalance, startingBalance, completedTrades, totalTrades, tradesProgress, balanceProgress, displayProgress });
-
-        setProgressData({
-          currentBalance,
-          targetAmount,
-          completedTrades,
-          totalTrades,
-          tradesProgress: displayProgress,
-          tradesRemaining: totalTrades - completedTrades,
-          // Add current milestone info for Navbar
-          ...(function getCurrentMilestone() {
-            // Reproduce milestone logic
-            let milestones = [];
-            let bal = startingBalance > 0 ? startingBalance : 1000;
-            let tradeNum = 1;
-            while (bal < targetAmount && tradeNum <= 500) {
-              const profit = bal * 0.02;
-              const end = bal + profit;
-              milestones.push({ trade: tradeNum, start: bal, profit, end });
-              bal = end;
-              tradeNum++;
-            }
-            const current = milestones[completedTrades] || null;
-            if (!current) return {};
-            return {
-              currentTradeNum: current.trade,
-              currentTradeStart: current.start,
-              currentTradeProfit: current.profit,
-              currentTradeEnd: current.end
-            };
-          })()
-        });
-      } catch (error) {
-        console.error('Failed to load progress data:', error);
-      }
-    };
-    loadProgressData();
-    const onCompoundRefresh = () => loadProgressData();
-    window.addEventListener(COMPOUND_REFRESH_EVENT, onCompoundRefresh);
-    const poll = setInterval(loadProgressData, 30_000);
-    return () => {
-      window.removeEventListener(COMPOUND_REFRESH_EVENT, onCompoundRefresh);
-      clearInterval(poll);
-    };
-  }, []);
+  if (config.maintenance.enabled) {
+    return <MaintenanceScreen brand={config.brand.name} message={config.maintenance.message} />;
+  }
 
   return (
-    <NotificationProvider>
-      {/* Fixed wallpaper layer behind everything */}
-      <div className="wallpaper-layer" aria-hidden="true" />
-      <div className="app-shell min-h-screen">
-        <Navbar progressData={progressData} />
-
-        <main>
-          {children}
-        </main>
-      </div>
-    </NotificationProvider>
+    <DashboardShell initialConfig={config} initialSettings={settings}>
+      {children}
+    </DashboardShell>
   );
 }

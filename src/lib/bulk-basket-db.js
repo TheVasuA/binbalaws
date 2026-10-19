@@ -29,9 +29,25 @@ const redis = new Redis({
 });
 
 const SET_KEY = 'bulk:baskets';
+const HEARTBEAT_KEY = 'bulk:watcher:heartbeat';
 const basketKey = (id) => `bulk:basket:${id}`;
 
+// The watcher refreshes this every tick; it expires shortly after the process
+// stops, which is how the admin panel tells whether 24/7 auto-exit is live.
+export async function writeWatcherHeartbeat(pollMs) {
+  await redis.set(
+    HEARTBEAT_KEY,
+    { at: new Date().toISOString(), pollMs, pid: process.pid },
+    { ex: Math.max(15, Math.ceil((pollMs * 5) / 1000)) },
+  );
+}
+
+export async function readWatcherHeartbeat() {
+  return redis.get(HEARTBEAT_KEY);
+}
+
 function num(value) {
+  if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }

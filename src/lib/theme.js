@@ -1,106 +1,75 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { THEME_STORAGE_KEY as STORAGE_KEY } from '@/lib/theme-script';
 
-// Available themes. `swatch` is used to render the preview dot/gradient.
-export const THEMES = [
-  // Dark themes
-  { id: 'midnight', name: 'Midnight', swatch: '#111827' },
-  { id: 'slate', name: 'Slate', swatch: '#0f172a' },
-  { id: 'ocean', name: 'Ocean', swatch: 'linear-gradient(135deg,#0b2540,#04101d)' },
-  { id: 'forest', name: 'Forest', swatch: 'linear-gradient(135deg,#0c2a1f,#04120e)' },
-  { id: 'grape', name: 'Grape', swatch: 'linear-gradient(135deg,#221540,#100a1e)' },
-  { id: 'crimson', name: 'Crimson', swatch: 'linear-gradient(135deg,#3a1220,#17070d)' },
-  { id: 'carbon', name: 'Carbon', swatch: '#000000' },
-  { id: 'sand', name: 'Sand', swatch: 'linear-gradient(135deg,#2b2417,#12100a)' },
-  { id: 'teal', name: 'Teal', swatch: 'linear-gradient(135deg,#0c2f2f,#041414)' },
-  { id: 'rose', name: 'Rose', swatch: 'linear-gradient(135deg,#3a1530,#180a14)' },
-  // Light themes
-  { id: 'light', name: 'Light', swatch: '#f3f4f6' },
-  { id: 'paper', name: 'Paper', swatch: '#faf7f0' },
+export const THEME_PREFERENCES = [
+  { id: 'dark', label: 'Dark' },
+  { id: 'light', label: 'Light' },
+  { id: 'system', label: 'System' },
 ];
 
-export const DEFAULT_THEME = 'midnight';
-const STORAGE_KEY = 'app_theme';
-const WALLPAPER_KEY = 'app_wallpaper';      // stores the image URL ('' = none)
-const WALLPAPER_OPACITY_KEY = 'app_wallpaper_opacity'; // 0..100
+const THEME_EVENT = 'app-theme-change';
 
-export function applyTheme(themeId) {
-  if (typeof document === 'undefined') return;
-  const id = THEMES.some((t) => t.id === themeId) ? themeId : DEFAULT_THEME;
-  document.documentElement.setAttribute('data-theme', id);
+function readPreference() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY) || 'dark';
+    if (raw === 'light' || raw === 'paper') return 'light';
+    if (raw === 'system') return 'system';
+    return 'dark';
+  } catch {
+    return 'dark';
+  }
 }
 
-// Apply the wallpaper as CSS variables consumed by the fixed background layer.
-export function applyWallpaper(url, opacity) {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  root.style.setProperty('--wallpaper-url', url ? `url("${url}")` : 'none');
-  root.style.setProperty('--wallpaper-opacity', String((Number(opacity) || 0) / 100));
+function resolve(preference) {
+  if (preference !== 'system') return preference;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
-/**
- * Wallpaper hook: persists the chosen wallpaper URL + opacity and applies them
- * to the fixed background layer via CSS variables.
- */
-export function useWallpaper() {
-  const [wallpaper, setWallpaperState] = useState('');
-  const [opacity, setOpacityState] = useState(15);
-
-  useEffect(() => {
-    let url = '';
-    let op = 15;
-    try {
-      url = localStorage.getItem(WALLPAPER_KEY) || '';
-      const savedOp = localStorage.getItem(WALLPAPER_OPACITY_KEY);
-      if (savedOp !== null) op = Number(savedOp);
-    } catch { /* ignore */ }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setWallpaperState(url);
-    setOpacityState(op);
-    applyWallpaper(url, op);
-  }, []);
-
-  const setWallpaper = useCallback((url) => {
-    setWallpaperState(url);
-    try { localStorage.setItem(WALLPAPER_KEY, url || ''); } catch { /* ignore */ }
-    setOpacityState((op) => { applyWallpaper(url, op); return op; });
-  }, []);
-
-  const setOpacity = useCallback((op) => {
-    const val = Number(op) || 0;
-    setOpacityState(val);
-    try { localStorage.setItem(WALLPAPER_OPACITY_KEY, String(val)); } catch { /* ignore */ }
-    setWallpaperState((url) => { applyWallpaper(url, val); return url; });
-  }, []);
-
-  return { wallpaper, opacity, setWallpaper, setOpacity };
+function subscribePreference(callback) {
+  window.addEventListener(THEME_EVENT, callback);
+  window.addEventListener('storage', callback);
+  return () => {
+    window.removeEventListener(THEME_EVENT, callback);
+    window.removeEventListener('storage', callback);
+  };
 }
 
-/**
- * Theme hook: persists the chosen theme in localStorage and applies it to
- * <html data-theme> so the CSS variables in globals.css take over.
- */
+function subscribeResolved(callback) {
+  const observer = new MutationObserver(callback);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => observer.disconnect();
+}
+
+/** The palette currently painted ('dark' | 'light'); follows every change. */
+export function useResolvedTheme() {
+  return useSyncExternalStore(
+    subscribeResolved,
+    () => document.documentElement.getAttribute('data-theme') || 'dark',
+    () => 'dark',
+  );
+}
+
 export function useTheme() {
-  const [theme, setThemeState] = useState(DEFAULT_THEME);
+  const preference = useSyncExternalStore(subscribePreference, readPreference, () => 'dark');
+  const resolved = useResolvedTheme();
 
   useEffect(() => {
-    let saved = DEFAULT_THEME;
+    if (preference !== 'system') return undefined;
+    const media = window.matchMedia('(prefers-color-scheme: light)');
+    const onChange = () => document.documentElement.setAttribute('data-theme', resolve('system'));
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, [preference]);
+
+  const setPreference = useCallback((next) => {
     try {
-      saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
-    } catch { /* ignore */ }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setThemeState(saved);
-    applyTheme(saved);
+      localStorage.setItem(STORAGE_KEY, next);
+    } catch { /* storage unavailable */ }
+    document.documentElement.setAttribute('data-theme', resolve(next));
+    window.dispatchEvent(new Event(THEME_EVENT));
   }, []);
 
-  const setTheme = useCallback((id) => {
-    setThemeState(id);
-    applyTheme(id);
-    try {
-      localStorage.setItem(STORAGE_KEY, id);
-    } catch { /* ignore */ }
-  }, []);
-
-  return { theme, setTheme, themes: THEMES };
+  return { preference, resolved, setPreference };
 }

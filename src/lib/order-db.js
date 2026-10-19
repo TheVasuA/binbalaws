@@ -105,6 +105,20 @@ export async function listStoredOrders({ symbol = null, limit = 100 } = {}) {
     .slice(0, safeLimit);
 }
 
+export async function countStoredOrders() {
+  const db = await readDb();
+  return db.orders.length;
+}
+
+export async function clearStoredOrders() {
+  return withWriteLock(async () => {
+    const db = await readDb();
+    const removed = db.orders.length;
+    await writeDb({ ...DEFAULT_DB, orders: [] });
+    return removed;
+  });
+}
+
 export async function updateStoredRisk({ symbol, side, stopLossPrice, takeProfitPrice }) {
   return withWriteLock(async () => {
     const db = await readDb();

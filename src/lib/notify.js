@@ -1,17 +1,19 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { cn } from '@/lib/cn';
+import { IconAlert, IconCheckCircle, IconInfo, IconX, IconXCircle } from '@/components/ui/icons';
 
 const NotifyContext = createContext(null);
 
-let _id = 0;
-const nextId = () => ++_id;
+let lastId = 0;
+const nextId = () => ++lastId;
 
 /** How long the post-order alert beeps (unless dismissed early). */
 export const ORDER_ALERT_DURATION_MS = 2 * 60 * 1000;
 const ORDER_BEEP_INTERVAL_MS = 2800;
 
-// ── Alarm beep via Web Audio API (no external file, works offline) ──────────
+// Alarm beep via the Web Audio API (no asset to load, works offline).
 function playBeep({ times = 3, freq = 880, gap = 220 } = {}) {
   if (typeof window === 'undefined') return;
   try {
@@ -32,15 +34,10 @@ function playBeep({ times = 3, freq = 880, gap = 220 } = {}) {
       osc.stop(t + 0.16);
       t += gap / 1000;
     }
-    // Close context after the last beep to free resources.
     setTimeout(() => ctx.close().catch(() => {}), times * gap + 400);
-  } catch { /* audio not available */ }
+  } catch { /* audio unavailable */ }
 }
 
-/**
- * NotificationProvider — renders a bottom toast stack and exposes notify().
- * Wrap the dashboard layout with it.
- */
 export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [orderAlert, setOrderAlert] = useState(null);
@@ -84,11 +81,9 @@ export function NotificationProvider({ children }) {
   const notify = useCallback(
     ({ title, message, level = 'info', beep = false, duration = 6000, sticky = false }) => {
       const id = nextId();
-      setToasts((prev) => [...prev, { id, title, message, level }]);
+      setToasts((prev) => [...prev.slice(-4), { id, title, message, level }]);
       if (beep) playBeep(level === 'danger' ? { times: 4, freq: 660 } : { times: 2 });
-      if (!sticky) {
-        timers.current[id] = setTimeout(() => dismiss(id), duration);
-      }
+      if (!sticky) timers.current[id] = setTimeout(() => dismiss(id), duration);
       return id;
     },
     [dismiss],
@@ -115,7 +110,6 @@ export function NotificationProvider({ children }) {
 
 export function useNotify() {
   const ctx = useContext(NotifyContext);
-  // Fallback no-op if used outside the provider.
   return ctx || {
     notify: () => {},
     dismiss: () => {},
@@ -158,39 +152,45 @@ function OrderAlertBanner({ alert, onClose }) {
   );
 }
 
-// ── Toast stack UI (bottom of page) ─────────────────────────────────────────
-const LEVEL_STYLES = {
-  info: 'bg-gray-800 border-blue-500/40 text-blue-200',
-  success: 'bg-gray-800 border-green-500/40 text-green-200',
-  warning: 'bg-gray-800 border-yellow-500/50 text-yellow-200',
-  danger: 'bg-gray-900 border-red-500/60 text-red-200',
+const LEVELS = {
+  info: { icon: IconInfo, accent: 'text-accent', bar: 'bg-accent' },
+  success: { icon: IconCheckCircle, accent: 'text-pos', bar: 'bg-pos' },
+  warning: { icon: IconAlert, accent: 'text-warn', bar: 'bg-warn' },
+  danger: { icon: IconXCircle, accent: 'text-neg', bar: 'bg-neg' },
 };
-const LEVEL_ICON = { info: 'ℹ️', success: '✅', warning: '⚠️', danger: '🛑' };
 
 function ToastStack({ toasts, onDismiss }) {
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-[92%] max-w-md pointer-events-none">
-      {toasts.map((t) => (
-        <div
-          key={t.id}
-          className={`pointer-events-auto flex items-start gap-2 rounded-xl border px-3 py-2 shadow-2xl backdrop-blur-md animate-fadeIn ${
-            LEVEL_STYLES[t.level] || LEVEL_STYLES.info
-          } ${t.level === 'danger' ? 'animate-pulse' : ''}`}
-        >
-          <span className="text-lg leading-none mt-0.5">{LEVEL_ICON[t.level] || 'ℹ️'}</span>
-          <div className="flex-1 min-w-0">
-            {t.title && <p className="text-sm font-semibold text-white">{t.title}</p>}
-            {t.message && <p className="text-xs opacity-90 break-words">{t.message}</p>}
-          </div>
-          <button
-            onClick={() => onDismiss(t.id)}
-            className="text-gray-400 hover:text-white text-lg leading-none ml-1"
-            aria-label="Dismiss"
+    <div
+      className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-2"
+      aria-live="polite"
+    >
+      {toasts.map((t) => {
+        const level = LEVELS[t.level] || LEVELS.info;
+        const Icon = level.icon;
+        return (
+          <div
+            key={t.id}
+            role={t.level === 'danger' ? 'alert' : 'status'}
+            className="animate-toast-in pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-lg bg-surface py-3 pl-4 pr-3 shadow-pop"
           >
-            ×
-          </button>
-        </div>
-      ))}
+            <span className={cn('absolute inset-y-0 left-0 w-0.5', level.bar)} />
+            <Icon size={16} className={cn('mt-0.5 shrink-0', level.accent)} />
+            <div className="min-w-0 flex-1">
+              {t.title && <p className="text-[13px] font-medium text-fg">{t.title}</p>}
+              {t.message && <p className="mt-0.5 break-words text-xs text-fg-muted">{t.message}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={() => onDismiss(t.id)}
+              className="rounded p-0.5 text-fg-subtle hover:bg-surface-3 hover:text-fg"
+              aria-label="Dismiss"
+            >
+              <IconX size={14} />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

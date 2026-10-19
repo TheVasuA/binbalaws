@@ -18,6 +18,9 @@ import {
   closePosition,
   closeAllPositions,
   getTodayRealizedPnl,
+  getFuturesTicker,
+  getFuturesLastPrices,
+  getFuturesDailyStats,
   getApiWeight
 } from '@/lib/binance';
 import { calculateFuturesRiskMetrics } from '@/lib/risk';
@@ -32,14 +35,10 @@ import {
   updateBasket,
   removeSymbolsFromBasket,
 } from '@/lib/bulk-basket-db';
+import { redis } from '@/lib/redis';
+import { getAppConfig, checkEntryAllowed } from '@/lib/app-config';
 import { applyProfitRatchet } from '@/lib/base-balance-guard';
 import { syncCompoundGoalFromTodayPnl } from '@/lib/daily-goal-sync';
-import { Redis } from '@upstash/redis';
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
 
 // Read circuit-breaker settings: daily-loss limit % (default 10) and whether
 // new orders are allowed even after the limit is breached (override, default no).
@@ -197,6 +196,32 @@ export async function GET(request) {
       const limit = parseInt(searchParams.get('limit') || '60', 10);
       const minVol = parseInt(searchParams.get('minVol') || '20000000', 10);
       data = await cachedFetch(`topgainers:${limit}:${minVol}`, 60, () => getFuturesTopGainers({ limit, minQuoteVolume: minVol }));
+    } else if (type === 'prices') {
+      const wanted = String(searchParams.get('symbols') || '')
+        .toUpperCase()
+        .split(',')
+        .filter((s) => /^[A-Z0-9]{2,30}$/.test(s))
+        .slice(0, 50);
+      const all = await cachedFetch('prices:all', 3, () => getFuturesLastPrices());
+      data = Object.fromEntries(wanted.filter((s) => all[s] !== undefined).map((s) => [s, all[s]]));
+    } else if (type === 'daily') {
+      const category = String(searchParams.get('category') || '');
+      const [symbols, stats] = await Promise.all([
+        cachedFetch('symbols', 3600, () => getFuturesSymbols()),
+        cachedFetch('daily:all', 30, () => getFuturesDailyStats()),
+      ]);
+      data = Object.fromEntries(
+        symbols
+          .filter((s) => !category || s.category === category)
+          .filter((s) => stats[s.symbol])
+          .map((s) => [s.symbol, stats[s.symbol]]),
+      );
+    } else if (type === 'ticker') {
+      const symbol = String(searchParams.get('symbol') || '').toUpperCase();
+      if (!/^[A-Z0-9]{2,30}$/.test(symbol)) {
+        return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 });
+      }
+      data = await cachedFetch(`ticker:${symbol}`, 2, () => getFuturesTicker(symbol));
     } else if (type === 'account') {
       data = fresh
         ? await getFuturesAccount()
@@ -301,6 +326,15 @@ export async function POST(request) {
         return NextResponse.json({
           error: 'takeProfitPrice must be a positive number',
         }, { status: 400 });
+      }
+
+      const entryBlock = checkEntryAllowed(await getAppConfig(), {
+        kind: 'single',
+        leverage: leverageValue,
+        orderType,
+      });
+      if (entryBlock) {
+        return NextResponse.json({ error: entryBlock.error, adminBlocked: true }, { status: entryBlock.status });
       }
 
       // ── Daily loss circuit breaker ─────────────────────────────────────
@@ -508,8 +542,14 @@ export async function POST(request) {
       if (legs.length < 1) {
         return NextResponse.json({ error: 'legs must contain at least one order' }, { status: 400 });
       }
-      if (legs.length > 5) {
-        return NextResponse.json({ error: 'A bulk scalp supports at most 5 coins' }, { status: 400 });
+
+      const entryBlock = checkEntryAllowed(await getAppConfig(), {
+        kind: 'bulk',
+        leverage: Math.max(...legs.map((l) => Number(l.leverage) || 0)),
+        legCount: legs.length,
+      });
+      if (entryBlock) {
+        return NextResponse.json({ error: entryBlock.error, adminBlocked: true }, { status: entryBlock.status });
       }
 
       const result = await placeBulkFuturesMarketOrders(legs);

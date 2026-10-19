@@ -1253,6 +1253,48 @@ export async function getFuturesOpenOrders(symbol = undefined) {
   }
 }
 
+// Last traded price for every perpetual in one weight-2 call.
+export async function getFuturesLastPrices() {
+  const rows = await futuresPublicRequest('/fapi/v2/ticker/price');
+  const map = {};
+  for (const row of rows) map[row.symbol] = parseFloat(row.price);
+  return map;
+}
+
+// Mark + last price and 24h change for one perpetual (works for TradFi perps
+// that have no spot market).
+export async function getFuturesTicker(symbol) {
+  const [mark, ticker] = await Promise.all([
+    futuresPublicRequest('/fapi/v1/premiumIndex', { symbol }),
+    futuresPublicRequest('/fapi/v1/ticker/24hr', { symbol }),
+  ]);
+  return {
+    symbol,
+    markPrice: parseFloat(mark.markPrice),
+    lastPrice: parseFloat(ticker.lastPrice),
+    change24h: parseFloat(ticker.priceChangePercent),
+    high24h: parseFloat(ticker.highPrice),
+    low24h: parseFloat(ticker.lowPrice),
+    volume24h: parseFloat(ticker.quoteVolume),
+    fundingRate: parseFloat(mark.lastFundingRate),
+    nextFundingTime: mark.nextFundingTime,
+  };
+}
+
+// 24h stats for every futures symbol: { SYMBOL: { last, change, volume } }.
+export async function getFuturesDailyStats() {
+  const tickers = await futuresPublicRequest('/fapi/v1/ticker/24hr');
+  const out = {};
+  for (const t of tickers) {
+    out[t.symbol] = {
+      last: parseFloat(t.lastPrice),
+      change: parseFloat(t.priceChangePercent),
+      volume: parseFloat(t.quoteVolume),
+    };
+  }
+  return out;
+}
+
 // Get futures mark prices
 export async function getFuturesMarkPrices() {
   try {
