@@ -138,8 +138,23 @@ function RSIGauge({ symbol, interval, label }) {
 
 
 export default function FuturesRiskMetrics({ metrics, account, positions }) {
-  // Target value for achievement
-  const TARGET_VALUE = 100000;
+  const [goalTarget, setGoalTarget] = useState(25000);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        if (data && data.goalTarget !== undefined) setGoalTarget(Number(data.goalTarget) || 25000);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  // Target value for achievement (from settings db)
+  const TARGET_VALUE = goalTarget;
   const targetAchieved = (account?.totalWalletBalance || 0) >= TARGET_VALUE;
   const finalValue = account?.totalWalletBalance || 0;
   if (!metrics) {

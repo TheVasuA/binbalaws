@@ -8,7 +8,7 @@ export default function CompoundPage() {
   const [completedTrades, setCompletedTrades] = useState([]);
   const [savedStartingBalance, setSavedStartingBalance] = useState(null);
   const [isDbLoaded, setIsDbLoaded] = useState(false);
-  const [targetAmount] = useState(100000);
+  const [targetAmount, setTargetAmount] = useState(25000);
   const [profitPercent] = useState(2);
 
   const currentBalance = futuresData?.account?.totalWalletBalance || 0;
@@ -26,6 +26,19 @@ export default function CompoundPage() {
     } catch (error) {
       console.error('Failed to save compound data:', error);
     }
+  }, []);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        if (data && data.goalTarget !== undefined) setTargetAmount(Number(data.goalTarget) || 25000);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
   }, []);
 
   useEffect(() => {
@@ -143,7 +156,7 @@ export default function CompoundPage() {
           <h1 className="text-2xl md:text-3xl font-bold text-white">
             Compound Trading Goal
           </h1>
-          <p className="text-gray-400 mt-1">2% profit per trade to $100,000</p>
+          <p className="text-gray-400 mt-1">2% profit per trade to {formatCurrency(targetAmount)}</p>
         </div>
         <div className="flex items-center gap-2">
           {completedCount > 0 && (

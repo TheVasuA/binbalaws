@@ -7,8 +7,8 @@ export default function GoalTracker({ futuresAccount }) {
   const [completedTrades, setCompletedTrades] = useState([]);
   const [savedStartingBalance, setSavedStartingBalance] = useState(null);
   const [isDbLoaded, setIsDbLoaded] = useState(false);
-  const [targetAmount] = useState(100000); // $100,000 target
-  const [profitPercent] = useState(2); // 2% per trade
+  const [targetAmount, setTargetAmount] = useState(25000);
+  const [profitPercent] = useState(2);
 
   const currentBalance = futuresAccount?.totalWalletBalance || 0;
 
@@ -26,6 +26,19 @@ export default function GoalTracker({ futuresAccount }) {
     } catch (error) {
       console.error('Failed to save compound data:', error);
     }
+  }, []);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        if (data && data.goalTarget !== undefined) setTargetAmount(Number(data.goalTarget) || 25000);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
   }, []);
 
   // Load data from database
@@ -147,7 +160,7 @@ export default function GoalTracker({ futuresAccount }) {
           <h2 className="text-lg md:text-xl font-semibold text-white">
             Compound Trading Goal
           </h2>
-          <p className="text-gray-400 text-sm">2% profit per trade to $100,000</p>
+          <p className="text-gray-400 text-sm">2% profit per trade to {formatCurrency(targetAmount)}</p>
         </div>
         <div className="flex items-center gap-2">
           {completedCount > 0 && (

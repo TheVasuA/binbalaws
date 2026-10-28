@@ -115,7 +115,7 @@ function getMaintenanceTier(notionalUsdt) {
 function buildCompoundMilestoneSummary({
   startingBalance,
   completedTradesCount,
-  targetAmount = 100000,
+  targetAmount = 25000,
   profitPercent = 2,
 }) {
   const baseBalance = Number(startingBalance);
@@ -192,6 +192,7 @@ export default function NewOrderPage() {
   const [compoundData, setCompoundData] = useState({ startingBalance: null, completedTrades: [] });
   const [compoundLoading, setCompoundLoading] = useState(true);
   const [compoundError, setCompoundError] = useState('');
+  const [goalTarget, setGoalTarget] = useState(25000);
 
   const {
     data: symbolsData,
@@ -227,6 +228,19 @@ export default function NewOrderPage() {
     error: priceError,
     refetch: refetchPrice,
   } = useFetch(`/api/prices?symbols=${symbol || 'BTCUSDT'}`, { refreshInterval: REFRESH_INTERVAL_MS });
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        if (data && data.goalTarget !== undefined) setGoalTarget(Number(data.goalTarget) || 25000);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const fetchCompoundData = useCallback(async (isBackground = false) => {
     try {
@@ -417,10 +431,10 @@ export default function NewOrderPage() {
     () => buildCompoundMilestoneSummary({
       startingBalance: compoundStartingBalance,
       completedTradesCount: completedMilestonesCount,
-      targetAmount: 100000,
+      targetAmount: goalTarget,
       profitPercent: 2,
     }),
-    [compoundStartingBalance, completedMilestonesCount],
+    [compoundStartingBalance, completedMilestonesCount, goalTarget],
   );
 
   const compoundMilestoneTargetUsdt = useMemo(() => {
