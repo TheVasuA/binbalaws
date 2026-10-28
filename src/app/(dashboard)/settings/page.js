@@ -83,6 +83,30 @@ const FIELDS = [
     min: 0,
     help: 'Multiplier used to show PnL in rupees.',
   },
+  {
+    key: 'baseBalance',
+    label: 'Base Balance Protection',
+    unit: 'USD',
+    step: '100',
+    min: 0,
+    help: 'Close all positions without asking once overall balance reaches this.',
+  },
+  {
+    key: 'baseBalanceAlarmPercent',
+    label: 'Base Balance Alarm %',
+    unit: '% before',
+    step: '1',
+    min: 0,
+    help: 'Beep + alert when balance is within this % of base balance.',
+  },
+  {
+    key: 'baseBalanceProfitPercent',
+    label: 'Daily Profit % added to Base',
+    unit: '%',
+    step: '1',
+    min: 0,
+    help: 'Today profit % added to base balance next day.',
+  },
 ];
 
 export default function SettingsPage() {
@@ -148,6 +172,7 @@ export default function SettingsPage() {
     { id: 'theme', label: '🎨 Theme' },
     { id: 'wallpaper', label: '🖼 Wallpaper' },
     { id: 'preferences', label: '🛠 Preferences' },
+    { id: 'base-balance', label: '🛡 Base Balance' },
   ];
 
   return (
@@ -177,7 +202,10 @@ export default function SettingsPage() {
               >
                 {l.label}
               </button>
-            ))}
+            ))} 
+            <div className="mt-2 px-3 py-2 text-xs text-green-400 font-semibold">
+              Spot: {spotTotal === null ? 'Loading…' : formatCurrency(spotTotal)}
+            </div>
           </nav>
         </aside>
 
@@ -373,6 +401,33 @@ export default function SettingsPage() {
       </section>
       )}
 
+      {activeSection === 'base-balance' && (
+      <section className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Base Balance Protection</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {['baseBalance','baseBalanceAlarmPercent','baseBalanceProfitPercent'].map((k) => {
+            const f = FIELDS.find((x) => x.key === k);
+            return (
+              <div key={f.key}>
+                <label className="block text-sm text-gray-300 mb-1">
+                  {f.label} <span className="text-gray-500">({f.unit})</span>
+                </label>
+                <input
+                  type="number"
+                  min={f.min}
+                  step={f.step}
+                  value={form[f.key] ?? ''}
+                  onChange={(e) => handleChange(f.key, e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 tabular-nums"
+                />
+                <p className="text-gray-500 text-xs mt-1">{f.help}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+      )}
+
       {/* Settings form */}
       {activeSection === 'preferences' && (
       <section className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6">
@@ -438,12 +493,6 @@ export default function SettingsPage() {
         </div>{/* end content column */}
       </div>{/* end flex row */}
 
-      <div className="mt-6 bg-gray-800/50 rounded-xl border border-gray-700 p-4">
-        <h2 className="text-lg font-semibold text-white mb-2">Spot Balance</h2>
-        <p className="text-2xl font-bold text-green-400">
-          {spotTotal === null ? 'Loading…' : formatCurrency(spotTotal)}
-        </p>
-      </div>
 
       <footer className="text-center text-gray-500 text-xs md:text-sm py-4 mt-6">
         Settings are stored securely and apply across the dashboard.

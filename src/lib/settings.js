@@ -15,6 +15,10 @@ export const DEFAULT_SETTINGS = {
   alarmLossPercent: 8,       // beep + alert when daily loss reaches this % of margin
   autoCloseOnBreaker: 0,     // 1 = auto-close all (except >=20x) when limit hit
   allowOrdersAfterBreach: 0, // 1 = allow new orders even after daily limit breached
+  baseBalance: 0,           // base balance protection target (close all when overall reaches this)
+  baseBalanceAlarmPercent: 10, // alarm at this % before base balance
+  baseBalanceAutoClose: 1,   // 1 = auto-close all when base balance reached
+  baseBalanceProfitPercent: 10, // today profit % added to base balance next day
 };
 
 /**

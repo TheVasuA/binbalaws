@@ -24,6 +24,10 @@ const DEFAULTS = {
                              // the daily loss limit is hit; 0 = only block
   allowOrdersAfterBreach: 0, // 1 = allow new orders even after the daily loss
                              // limit is breached (override the circuit breaker)
+  baseBalance: 0,             // base balance protection target (close all when overall reaches this)
+  baseBalanceAlarmPercent: 10, // alarm at this % before base balance
+  baseBalanceAutoClose: 1,    // 1 = auto-close all when base balance reached
+  baseBalanceProfitPercent: 10, // today profit % added to base balance next day
 };
 
 export async function GET() {

@@ -9,708 +9,852 @@
 
 ✓ Starting...
 Creating turbopack project { dir: 'D:\\bala_ssh', testMode: true }
-✓ Ready in 1256ms
- GET /api/futures?type=orders 200 in 1472ms (compile: 749ms, render: 722ms)
- GET /api/futures?type=account 200 in 1472ms (compile: 769ms, render: 703ms)
- GET /api/futures?type=dailyPnl 200 in 1493ms (compile: 695ms, render: 798ms)
- GET / 200 in 1525ms (compile: 913ms, render: 612ms)
- GET /api/listenkey?type=futures 200 in 774ms (compile: 145ms, render: 629ms)
-(node:25268) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+✓ Ready in 2s
+ GET /api/listenkey?type=futures 200 in 1942ms (compile: 815ms, render: 1127ms)
+ GET / 200 in 2.2s (compile: 1137ms, render: 1080ms)
+ GET /api/listenkey?type=futures 200 in 724ms (compile: 55ms, render: 669ms)
+ GET /api/settings 200 in 954ms (compile: 555ms, render: 399ms)
+ GET /api/compound 200 in 991ms (compile: 654ms, render: 337ms)
+(node:27036) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-[TimeSync] Futures offset: 26709 ms
-[TimeSync] Futures offset: 26800 ms
-[TimeSync] Futures offset: 26822 ms
-Settings GET error: TypeError: fetch failed
-    at async GET (src\app\api\settings\route.js:31:18)
-  29 | export async function GET() {
-  30 |   try {
-> 31 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
-  33 |   } catch (error) {
-  34 |     console.error('Settings GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/settings 200 in 5.0s (compile: 288ms, render: 4.8s)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 5.2s (compile: 409ms, render: 4.8s)
-[FuturesPositions] openAlgoOrders raw: []
- GET /api/futures?type=positions 200 in 9.9s (compile: 20ms, render: 9.9s)
- GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 202ms (compile: 33ms, render: 170ms)
- GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 5ms (compile: 2ms, render: 3ms)
- GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 210ms (compile: 26ms, render: 184ms)
- GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 5ms (compile: 1720µs, render: 3ms)
-[FuturesPositions] openAlgoOrders raw: []
- GET /api/futures?type=positions 200 in 9.2s (compile: 3ms, render: 9.2s)
- GET /api/futures?type=dailyPnl 200 in 9.2s (compile: 2ms, render: 9.2s)
-[TimeSync] Spot offset: 26896 ms
- GET /api/spot 200 in 836ms (compile: 287ms, render: 549ms)
- GET /api/futures?type=account 200 in 9.4s (compile: 3ms, render: 9.4s)
- GET /api/futures?type=orders 200 in 9.8s (compile: 7ms, render: 9.8s)
- GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 2ms, render: 9.3s)
- GET /api/futures?type=account 200 in 9.0s (compile: 4ms, render: 9.0s)
- GET /api/futures?type=orders 200 in 8.9s (compile: 4ms, render: 8.9s)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 3ms, render: 8.9s)
+[TimeSync] Futures offset: 26893 ms
+[TimeSync] Futures offset: 26995 ms
+[TimeSync] Futures offset: 26998 ms
+[TimeSync] Futures offset: 27014 ms
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 1844ms (compile: 381ms, render: 1463ms)
+ GET /api/futures?type=positions 200 in 366ms (compile: 8ms, render: 358ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 346ms (compile: 83ms, render: 264ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 349ms (compile: 100ms, render: 249ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 15ms (compile: 5ms, render: 10ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 26ms (compile: 18ms, render: 8ms)
+ GET /api/futures?type=dailyPnl 200 in 797ms (compile: 5ms, render: 792ms)
+ GET /api/futures?type=dailyPnl 200 in 336ms (compile: 24ms, render: 312ms)
+ GET /api/futures?type=orders 200 in 734ms (compile: 15ms, render: 719ms)
+ GET /api/futures?type=account 200 in 890ms (compile: 5ms, render: 885ms)
+ GET /api/futures?type=dailyPnl 200 in 426ms (compile: 14ms, render: 412ms)
+ GET /api/futures?type=account 200 in 864ms (compile: 4ms, render: 860ms)
+ GET /api/futures?type=orders 200 in 877ms (compile: 8ms, render: 869ms)
+ GET /api/futures?type=dailyPnl 200 in 461ms (compile: 17ms, render: 444ms)
+ GET /api/futures?type=orders 200 in 854ms (compile: 10ms, render: 845ms)
+ GET /api/futures?type=account 200 in 893ms (compile: 5ms, render: 888ms)
+ GET / 200 in 55ms (compile: 4ms, render: 51ms)
+ GET /api/futures?type=dailyPnl 200 in 313ms (compile: 19ms, render: 294ms)
+ GET /api/futures?type=orders 200 in 724ms (compile: 13ms, render: 711ms)
+ GET /api/futures?type=account 200 in 770ms (compile: 6ms, render: 763ms)
+ GET /api/futures?type=dailyPnl 200 in 328ms (compile: 20ms, render: 308ms)
+ GET /api/futures?type=orders 200 in 729ms (compile: 13ms, render: 716ms)
+ GET /api/futures?type=account 200 in 768ms (compile: 5ms, render: 763ms)
+ GET /api/futures?type=dailyPnl 200 in 382ms (compile: 18ms, render: 364ms)
+[TimeSync] Futures offset: 26849 ms
+[TimeSync] Futures offset: 26844 ms
+ GET /api/futures?type=orders 200 in 897ms (compile: 11ms, render: 886ms)
+ GET /api/futures?type=account 200 in 922ms (compile: 5ms, render: 917ms)
+ GET /api/futures?type=orders 200 in 724ms (compile: 8ms, render: 716ms)
+ GET /api/futures?type=dailyPnl 200 in 733ms (compile: 14ms, render: 719ms)
+ GET /api/futures?type=account 200 in 902ms (compile: 3ms, render: 898ms)
+ GET /api/futures?type=dailyPnl 200 in 293ms (compile: 14ms, render: 280ms)
+ GET /api/futures?type=account 200 in 688ms (compile: 3ms, render: 685ms)
+ GET /api/futures?type=orders 200 in 732ms (compile: 8ms, render: 724ms)
+ GET /api/futures?type=dailyPnl 200 in 306ms (compile: 11ms, render: 296ms)
+ GET /api/futures?type=orders 200 in 719ms (compile: 7ms, render: 712ms)
+ GET /api/futures?type=account 200 in 733ms (compile: 3ms, render: 731ms)
+ GET /api/futures?type=dailyPnl 200 in 371ms (compile: 12ms, render: 358ms)
+ GET /api/futures?type=orders 200 in 694ms (compile: 7ms, render: 687ms)
+ GET /api/futures?type=account 200 in 754ms (compile: 3ms, render: 751ms)
+ GET /api/futures?type=dailyPnl 200 in 323ms (compile: 11ms, render: 313ms)
+ GET /api/futures?type=orders 200 in 731ms (compile: 7ms, render: 724ms)
+ GET /api/futures?type=account 200 in 746ms (compile: 3ms, render: 743ms)
+ GET /api/futures?type=dailyPnl 200 in 303ms (compile: 9ms, render: 294ms)
+ GET /api/futures?type=orders 200 in 711ms (compile: 6ms, render: 705ms)
+ GET /api/futures?type=account 200 in 729ms (compile: 3ms, render: 726ms)
+ GET /api/futures?type=dailyPnl 200 in 309ms (compile: 10ms, render: 299ms)
+[TimeSync] Futures offset: 26846 ms
+[TimeSync] Futures offset: 26844 ms
+ GET /api/futures?type=orders 200 in 896ms (compile: 7ms, render: 890ms)
+ GET /api/futures?type=account 200 in 899ms (compile: 3ms, render: 896ms)
+ GET /api/futures?type=orders 200 in 775ms (compile: 7ms, render: 768ms)
+ GET /api/futures?type=account 200 in 781ms (compile: 3ms, render: 778ms)
+ GET /api/futures?type=dailyPnl 200 in 994ms (compile: 10ms, render: 984ms)
+ GET /api/futures?type=dailyPnl 200 in 408ms (compile: 12ms, render: 396ms)
+ GET /api/futures?type=orders 200 in 837ms (compile: 7ms, render: 830ms)
+ GET /api/futures?type=account 200 in 889ms (compile: 4ms, render: 885ms)
+ GET /api/futures?type=dailyPnl 200 in 368ms (compile: 9ms, render: 360ms)
+ GET /api/futures?type=account 200 in 824ms (compile: 2ms, render: 822ms)
+ GET /api/futures?type=orders 200 in 982ms (compile: 5ms, render: 977ms)
+ GET /api/futures?type=dailyPnl 200 in 668ms (compile: 9ms, render: 659ms)
+ GET /api/futures?type=account 200 in 1149ms (compile: 2ms, render: 1147ms)
+ GET /api/futures?type=orders 200 in 1362ms (compile: 6ms, render: 1356ms)
+ GET /api/futures?type=dailyPnl 200 in 373ms (compile: 7ms, render: 367ms)
+ GET /api/futures?type=orders 200 in 562ms (compile: 5ms, render: 557ms)
+ GET /api/futures?type=account 200 in 583ms (compile: 2ms, render: 581ms)
+ GET /api/futures?type=dailyPnl 200 in 349ms (compile: 8ms, render: 340ms)
+[TimeSync] Futures offset: 27112 ms
+ GET /api/futures?type=account 200 in 826ms (compile: 2ms, render: 824ms)
+ GET /api/futures?type=orders 200 in 1289ms (compile: 5ms, render: 1284ms)
+ GET /api/futures?type=dailyPnl 200 in 370ms (compile: 8ms, render: 362ms)
+ GET /api/futures?type=orders 200 in 609ms (compile: 5ms, render: 604ms)
+ GET /api/futures?type=account 200 in 620ms (compile: 2ms, render: 618ms)
+ GET /api/futures?type=account 200 in 859ms (compile: 3ms, render: 857ms)
+ GET /api/futures?type=orders 200 in 1064ms (compile: 7ms, render: 1058ms)
+ GET /api/futures?type=dailyPnl 200 in 1082ms (compile: 11ms, render: 1071ms)
+ GET /api/futures?type=dailyPnl 200 in 348ms (compile: 14ms, render: 334ms)
+ GET /api/futures?type=orders 200 in 725ms (compile: 10ms, render: 715ms)
+ GET /api/futures?type=account 200 in 728ms (compile: 4ms, render: 724ms)
+ GET /api/futures?type=dailyPnl 200 in 359ms (compile: 10ms, render: 349ms)
+ GET /api/futures?type=orders 200 in 827ms (compile: 7ms, render: 820ms)
+ GET /api/futures?type=account 200 in 831ms (compile: 3ms, render: 829ms)
+ GET /api/futures?type=dailyPnl 200 in 324ms (compile: 8ms, render: 316ms)
+ GET /api/futures?type=orders 200 in 787ms (compile: 6ms, render: 781ms)
+ GET /api/futures?type=account 200 in 807ms (compile: 3ms, render: 804ms)
+ GET /api/futures?type=dailyPnl 200 in 331ms (compile: 14ms, render: 317ms)
+ GET /api/futures?type=orders 200 in 742ms (compile: 9ms, render: 733ms)
+ GET /api/futures?type=account 200 in 804ms (compile: 5ms, render: 800ms)
+ GET /api/futures?type=dailyPnl 200 in 405ms (compile: 8ms, render: 396ms)
+[TimeSync] Futures offset: 26854 ms
+[TimeSync] Futures offset: 26878 ms
+ GET /api/futures?type=account 200 in 947ms (compile: 2ms, render: 945ms)
+ GET /api/futures?type=orders 200 in 987ms (compile: 5ms, render: 982ms)
+ GET /api/futures?type=dailyPnl 200 in 497ms (compile: 29ms, render: 468ms)
+ GET /api/futures?type=orders 200 in 867ms (compile: 10ms, render: 857ms)
+ GET /api/futures?type=account 200 in 964ms (compile: 3ms, render: 960ms)
+ GET /api/futures?type=dailyPnl 200 in 796ms (compile: 10ms, render: 786ms)
+ GET /api/futures?type=orders 200 in 964ms (compile: 6ms, render: 958ms)
+ GET /api/futures?type=account 200 in 980ms (compile: 3ms, render: 978ms)
+ GET /api/futures?type=dailyPnl 200 in 382ms (compile: 10ms, render: 372ms)
+ GET /api/futures?type=orders 200 in 856ms (compile: 7ms, render: 849ms)
+ GET /api/futures?type=account 200 in 912ms (compile: 3ms, render: 909ms)
+ GET /api/futures?type=dailyPnl 200 in 462ms (compile: 13ms, render: 448ms)
+ GET /api/futures?type=account 200 in 841ms (compile: 3ms, render: 837ms)
+ GET /api/futures?type=orders 200 in 858ms (compile: 8ms, render: 849ms)
+ GET /api/futures?type=dailyPnl 200 in 482ms (compile: 15ms, render: 467ms)
+ GET /api/futures?type=orders 200 in 951ms (compile: 10ms, render: 941ms)
+ GET /api/futures?type=account 200 in 991ms (compile: 4ms, render: 988ms)
+ GET /api/futures?type=dailyPnl 200 in 336ms (compile: 13ms, render: 323ms)
+[TimeSync] Futures offset: 26840 ms
+[TimeSync] Futures offset: 26866 ms
+ GET /api/futures?type=account 200 in 1033ms (compile: 3ms, render: 1030ms)
+ GET /api/futures?type=orders 200 in 1086ms (compile: 9ms, render: 1077ms)
+ GET /api/futures?type=dailyPnl 200 in 396ms (compile: 11ms, render: 384ms)
+ GET /api/futures?type=account 200 in 886ms (compile: 3ms, render: 883ms)
+ GET /api/futures?type=orders 200 in 1146ms (compile: 7ms, render: 1139ms)
+ GET /api/futures?type=dailyPnl 200 in 332ms (compile: 9ms, render: 323ms)
+ GET /api/futures?type=account 200 in 625ms (compile: 2ms, render: 623ms)
+ GET /api/futures?type=orders 200 in 776ms (compile: 5ms, render: 770ms)
+ GET /api/futures?type=orders 200 in 778ms (compile: 6ms, render: 772ms)
+ GET /api/futures?type=dailyPnl 200 in 819ms (compile: 9ms, render: 811ms)
+ GET /api/futures?type=account 200 in 981ms (compile: 3ms, render: 978ms)
+ GET /api/futures?type=dailyPnl 200 in 403ms (compile: 9ms, render: 394ms)
+ GET /api/futures?type=account 200 in 827ms (compile: 2ms, render: 825ms)
+ GET /api/futures?type=orders 200 in 845ms (compile: 6ms, render: 839ms)
+ GET /api/futures?type=dailyPnl 200 in 326ms (compile: 11ms, render: 315ms)
+ GET /api/futures?type=orders 200 in 758ms (compile: 8ms, render: 750ms)
+ GET /api/futures?type=account 200 in 805ms (compile: 3ms, render: 802ms)
+[TimeSync] Futures offset: 26855 ms
+[TimeSync] Futures offset: 26874 ms
+ GET /api/futures?type=dailyPnl 200 in 697ms (compile: 9ms, render: 688ms)
+ GET /api/futures?type=orders 200 in 1027ms (compile: 6ms, render: 1022ms)
+ GET /api/futures?type=account 200 in 1156ms (compile: 3ms, render: 1153ms)
+ GET /api/futures?type=dailyPnl 200 in 159ms (compile: 6ms, render: 154ms)
+ GET /api/futures?type=orders 200 in 581ms (compile: 2ms, render: 579ms)
+ GET /api/futures?type=account 200 in 799ms (compile: 10ms, render: 789ms)
+ GET /api/futures?type=dailyPnl 200 in 331ms (compile: 12ms, render: 319ms)
+ GET /api/futures?type=account 200 in 782ms (compile: 3ms, render: 779ms)
+ GET /api/futures?type=orders 200 in 806ms (compile: 8ms, render: 798ms)
+ GET /api/futures?type=dailyPnl 200 in 309ms (compile: 13ms, render: 296ms)
+ GET /api/futures?type=account 200 in 776ms (compile: 4ms, render: 772ms)
+ GET /api/futures?type=orders 200 in 899ms (compile: 9ms, render: 890ms)
+ GET /api/futures?type=account 200 in 793ms (compile: 11ms, render: 782ms)
+ GET /api/futures?type=dailyPnl 200 in 802ms (compile: 15ms, render: 787ms)
+ GET /api/futures?type=orders 200 in 889ms (compile: 4ms, render: 885ms)
+ GET /api/futures?type=dailyPnl 200 in 386ms (compile: 12ms, render: 374ms)
+ GET /api/futures?type=orders 200 in 744ms (compile: 8ms, render: 737ms)
+ GET /api/futures?type=account 200 in 768ms (compile: 3ms, render: 765ms)
+ GET /api/futures?type=dailyPnl 200 in 326ms (compile: 10ms, render: 316ms)
+ GET /api/futures?type=orders 200 in 746ms (compile: 7ms, render: 739ms)
+ GET /api/futures?type=account 200 in 797ms (compile: 3ms, render: 793ms)
+ GET /api/futures?type=dailyPnl 200 in 326ms (compile: 13ms, render: 313ms)
+[TimeSync] Futures offset: 26848 ms
+[TimeSync] Futures offset: 26873 ms
+ GET /api/futures?type=account 200 in 929ms (compile: 3ms, render: 926ms)
+ GET /api/futures?type=orders 200 in 986ms (compile: 8ms, render: 979ms)
+ GET /settings 200 in 96ms (compile: 46ms, render: 50ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 3.8min (compile: 225ms, render: 3.8min)
+ GET /api/settings 200 in 148ms (compile: 6ms, render: 141ms)
+ DELETE /api/listenkey?type=futures&listenKey=MNE6BHFfwS49rT0QLM7Pc3dg90AH8QlLYb9jCqSQIj8w6OzGT1szit0chRmqEAtO 200 in 240ms (compile: 9ms, render: 230ms)
+ GET /api/listenkey?type=futures 200 in 190ms (compile: 10ms, render: 179ms)
+ GET /api/settings 200 in 136ms (compile: 2ms, render: 134ms)
+ GET /api/listenkey?type=futures 200 in 173ms (compile: 3ms, render: 169ms)
+[TimeSync] Spot offset: 27039 ms
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/spot 200 in 598ms (compile: 72ms, render: 526ms)
+ GET /api/futures?type=positions 200 in 698ms (compile: 4ms, render: 694ms)
+ GET /api/spot 200 in 183ms (compile: 3ms, render: 180ms)
+ GET /api/futures?type=dailyPnl 200 in 134ms (compile: 4ms, render: 130ms)
+ GET /api/futures?type=positions 200 in 149ms (compile: 4ms, render: 145ms)
+ GET /api/futures?type=dailyPnl 200 in 131ms (compile: 3ms, render: 128ms)
+ GET /api/futures?type=dailyPnl 200 in 325ms (compile: 12ms, render: 313ms)
+ GET /api/futures?type=orders 200 in 724ms (compile: 7ms, render: 717ms)
+ GET /api/futures?type=account 200 in 928ms (compile: 3ms, render: 925ms)
+ GET /api/futures?type=dailyPnl 200 in 429ms (compile: 14ms, render: 415ms)
+ GET /api/futures?type=account 200 in 831ms (compile: 4ms, render: 827ms)
+ GET /api/futures?type=orders 200 in 864ms (compile: 9ms, render: 855ms)
+ GET /api/futures?type=orders 200 in 834ms (compile: 17ms, render: 817ms)
+ GET /api/futures?type=dailyPnl 200 in 844ms (compile: 24ms, render: 820ms)
+ GET /api/futures?type=account 200 in 1073ms (compile: 7ms, render: 1066ms)
+ GET /api/futures?type=dailyPnl 200 in 359ms (compile: 18ms, render: 342ms)
+ GET /api/futures?type=account 200 in 599ms (compile: 4ms, render: 595ms)
+ GET /api/futures?type=orders 200 in 810ms (compile: 10ms, render: 800ms)
+ GET /api/futures?type=dailyPnl 200 in 506ms (compile: 26ms, render: 480ms)
+ GET /api/futures?type=account 200 in 860ms (compile: 6ms, render: 854ms)
+ GET /api/futures?type=orders 200 in 1033ms (compile: 17ms, render: 1016ms)
+[TimeSync] Futures offset: 26857 ms
+ GET /api/futures?type=dailyPnl 200 in 414ms (compile: 14ms, render: 400ms)
+ GET /api/futures?type=orders 200 in 770ms (compile: 10ms, render: 760ms)
+ GET /api/futures?type=account 200 in 886ms (compile: 4ms, render: 883ms)
+ GET /api/futures?type=dailyPnl 200 in 373ms (compile: 16ms, render: 357ms)
+ GET /api/futures?type=orders 200 in 789ms (compile: 9ms, render: 780ms)
+ GET /api/futures?type=account 200 in 885ms (compile: 4ms, render: 882ms)
+ GET /api/futures?type=dailyPnl 200 in 365ms (compile: 19ms, render: 346ms)
+ GET /api/futures?type=orders 200 in 811ms (compile: 12ms, render: 799ms)
+ GET /api/futures?type=account 200 in 840ms (compile: 5ms, render: 836ms)
+ GET /api/futures?type=dailyPnl 200 in 485ms (compile: 15ms, render: 470ms)
+ GET /api/futures?type=orders 200 in 818ms (compile: 9ms, render: 809ms)
+ GET /api/futures?type=account 200 in 822ms (compile: 4ms, render: 819ms)
+ GET /api/futures?type=dailyPnl 200 in 754ms (compile: 10ms, render: 744ms)
+ GET /api/futures?type=account 200 in 764ms (compile: 4ms, render: 760ms)
+ GET /api/futures?type=orders 200 in 944ms (compile: 16ms, render: 927ms)
+ GET /api/futures?type=dailyPnl 200 in 326ms (compile: 21ms, render: 305ms)
+ GET /api/futures?type=orders 200 in 733ms (compile: 15ms, render: 719ms)
+ GET /api/futures?type=account 200 in 738ms (compile: 6ms, render: 732ms)
+ GET /api/futures?type=dailyPnl 200 in 520ms (compile: 18ms, render: 502ms)
+[TimeSync] Futures offset: 26871 ms
+[TimeSync] Futures offset: 27153 ms
+ GET /api/futures?type=orders 200 in 1188ms (compile: 12ms, render: 1176ms)
+ GET /api/futures?type=account 200 in 1446ms (compile: 5ms, render: 1441ms)
+ GET /api/futures?type=dailyPnl 200 in 386ms (compile: 18ms, render: 368ms)
+ GET /api/futures?type=orders 200 in 560ms (compile: 13ms, render: 547ms)
+ GET /api/futures?type=account 200 in 593ms (compile: 6ms, render: 587ms)
+ GET /api/futures?type=dailyPnl 200 in 399ms (compile: 21ms, render: 378ms)
+ GET /api/futures?type=account 200 in 818ms (compile: 5ms, render: 814ms)
+ GET /api/futures?type=orders 200 in 1040ms (compile: 13ms, render: 1027ms)
+ GET /api/futures?type=dailyPnl 200 in 412ms (compile: 27ms, render: 385ms)
+ GET /api/futures?type=orders 200 in 603ms (compile: 19ms, render: 585ms)
+ GET /api/futures?type=account 200 in 911ms (compile: 7ms, render: 904ms)
+ GET /api/futures?type=dailyPnl 200 in 363ms (compile: 28ms, render: 335ms)
+ GET /api/futures?type=account 200 in 792ms (compile: 7ms, render: 784ms)
+ GET /api/futures?type=orders 200 in 888ms (compile: 18ms, render: 870ms)
+ GET /api/futures?type=orders 200 in 799ms (compile: 16ms, render: 782ms)
+ GET /api/futures?type=account 200 in 837ms (compile: 5ms, render: 832ms)
+ GET /api/futures?type=dailyPnl 200 in 1039ms (compile: 27ms, render: 1012ms)
+ GET /api/futures?type=dailyPnl 200 in 458ms (compile: 43ms, render: 415ms)
+ GET /api/futures?type=account 200 in 640ms (compile: 11ms, render: 629ms)
+ GET /api/futures?type=orders 200 in 897ms (compile: 25ms, render: 872ms)
+ GET /api/futures?type=dailyPnl 200 in 326ms (compile: 18ms, render: 308ms)
+[TimeSync] Futures offset: 26855 ms
+[TimeSync] Futures offset: 26857 ms
+ GET /api/futures?type=orders 200 in 929ms (compile: 12ms, render: 917ms)
+ GET /api/futures?type=account 200 in 934ms (compile: 5ms, render: 930ms)
+ GET /api/futures?type=dailyPnl 200 in 325ms (compile: 31ms, render: 294ms)
+ GET /api/futures?type=account 200 in 800ms (compile: 7ms, render: 793ms)
+ GET /api/futures?type=orders 200 in 996ms (compile: 18ms, render: 978ms)
+ GET /api/futures?type=dailyPnl 200 in 408ms (compile: 26ms, render: 382ms)
+ GET /api/futures?type=orders 200 in 809ms (compile: 17ms, render: 792ms)
+ GET /api/futures?type=account 200 in 997ms (compile: 6ms, render: 991ms)
+ GET /api/futures?type=dailyPnl 200 in 353ms (compile: 33ms, render: 320ms)
+ GET /api/futures?type=orders 200 in 803ms (compile: 22ms, render: 782ms)
+ GET /api/futures?type=account 200 in 809ms (compile: 8ms, render: 801ms)
+ GET /api/futures?type=dailyPnl 200 in 367ms (compile: 17ms, render: 350ms)
+ GET /api/futures?type=account 200 in 819ms (compile: 4ms, render: 815ms)
+ GET /api/futures?type=orders 200 in 943ms (compile: 10ms, render: 932ms)
+ GET /api/futures?type=orders 200 in 876ms (compile: 14ms, render: 862ms)
+ GET /api/futures?type=account 200 in 953ms (compile: 7ms, render: 947ms)
+ GET /api/futures?type=dailyPnl 200 in 1151ms (compile: 21ms, render: 1131ms)
+ GET /api/futures?type=dailyPnl 200 in 385ms (compile: 16ms, render: 370ms)
+ GET /api/futures?type=orders 200 in 565ms (compile: 9ms, render: 556ms)
+ GET /api/futures?type=account 200 in 606ms (compile: 4ms, render: 603ms)
+ GET /api/futures?type=dailyPnl 200 in 381ms (compile: 18ms, render: 362ms)
+[TimeSync] Futures offset: 26972 ms
+[TimeSync] Futures offset: 27015 ms
+ GET /api/futures?type=account 200 in 1140ms (compile: 4ms, render: 1136ms)
+ GET /api/futures?type=orders 200 in 1322ms (compile: 12ms, render: 1310ms)
+ GET /api/futures?type=dailyPnl 200 in 375ms (compile: 19ms, render: 357ms)
+ GET /api/futures?type=orders 200 in 591ms (compile: 13ms, render: 578ms)
+ GET /api/futures?type=account 200 in 634ms (compile: 7ms, render: 627ms)
+ GET /api/futures?type=dailyPnl 200 in 342ms (compile: 32ms, render: 310ms)
+ GET /api/futures?type=orders 200 in 766ms (compile: 18ms, render: 748ms)
+ GET /api/futures?type=account 200 in 978ms (compile: 8ms, render: 970ms)
+ GET /api/futures?type=dailyPnl 200 in 498ms (compile: 16ms, render: 482ms)
+ GET /api/futures?type=orders 200 in 787ms (compile: 10ms, render: 777ms)
+ GET /api/futures?type=account 200 in 872ms (compile: 4ms, render: 869ms)
+ GET /api/futures?type=dailyPnl 200 in 395ms (compile: 24ms, render: 370ms)
+ GET /api/futures?type=orders 200 in 805ms (compile: 18ms, render: 787ms)
+ GET /api/futures?type=account 200 in 849ms (compile: 7ms, render: 842ms)
+ GET /api/futures?type=orders 200 in 761ms (compile: 10ms, render: 751ms)
+ GET /api/futures?type=dailyPnl 200 in 783ms (compile: 17ms, render: 766ms)
+ GET /api/futures?type=account 200 in 985ms (compile: 4ms, render: 981ms)
+ GET /api/futures?type=dailyPnl 200 in 454ms (compile: 26ms, render: 428ms)
+ GET /api/futures?type=orders 200 in 1070ms (compile: 17ms, render: 1053ms)
+ GET /api/futures?type=account 200 in 1106ms (compile: 6ms, render: 1100ms)
+ GET /api/futures?type=dailyPnl 200 in 169ms (compile: 31ms, render: 138ms)
+[TimeSync] Futures offset: 26856 ms
+ GET /api/futures?type=account 200 in 871ms (compile: 9ms, render: 862ms)
+ GET /api/futures?type=orders 200 in 920ms (compile: 21ms, render: 899ms)
+ GET /api/futures?type=dailyPnl 200 in 424ms (compile: 34ms, render: 389ms)
+ GET /api/futures?type=orders 200 in 870ms (compile: 22ms, render: 849ms)
+ GET /api/futures?type=account 200 in 887ms (compile: 6ms, render: 881ms)
+ GET /api/futures?type=dailyPnl 200 in 778ms (compile: 37ms, render: 741ms)
+ GET /api/futures?type=account 200 in 1279ms (compile: 8ms, render: 1271ms)
+ GET /api/futures?type=orders 200 in 1440ms (compile: 23ms, render: 1418ms)
+ GET /api/futures?type=dailyPnl 200 in 780ms (compile: 33ms, render: 747ms)
+ GET /api/futures?type=account 200 in 935ms (compile: 10ms, render: 924ms)
+ GET /api/futures?type=orders 200 in 945ms (compile: 22ms, render: 924ms)
+ GET /api/futures?type=dailyPnl 200 in 424ms (compile: 32ms, render: 392ms)
+ GET /api/futures?type=orders 200 in 746ms (compile: 20ms, render: 726ms)
+ GET /api/futures?type=account 200 in 795ms (compile: 7ms, render: 788ms)
+ GET /api/futures?type=dailyPnl 200 in 779ms (compile: 30ms, render: 749ms)
+ GET /api/futures?type=account 200 in 830ms (compile: 7ms, render: 822ms)
+ GET /api/futures?type=orders 200 in 1017ms (compile: 19ms, render: 998ms)
+ GET /api/futures?type=dailyPnl 200 in 388ms (compile: 16ms, render: 372ms)
+[TimeSync] Futures offset: 26850 ms
+ GET /api/futures?type=account 200 in 609ms (compile: 3ms, render: 606ms)
+ GET /api/futures?type=orders 200 in 943ms (compile: 7ms, render: 936ms)
+ GET /api/futures?type=dailyPnl 200 in 389ms (compile: 33ms, render: 355ms)
+ GET /api/futures?type=account 200 in 800ms (compile: 8ms, render: 792ms)
+ GET /api/futures?type=orders 200 in 951ms (compile: 22ms, render: 929ms)
+ GET /api/futures?type=dailyPnl 200 in 481ms (compile: 34ms, render: 447ms)
+ GET /api/futures?type=orders 200 in 830ms (compile: 23ms, render: 806ms)
+ GET /api/futures?type=account 200 in 1060ms (compile: 8ms, render: 1052ms)
+ GET /api/futures?type=dailyPnl 200 in 420ms (compile: 32ms, render: 387ms)
+ GET /api/futures?type=orders 200 in 609ms (compile: 19ms, render: 590ms)
+ GET /api/futures?type=account 200 in 880ms (compile: 6ms, render: 874ms)
+ GET / 200 in 70ms (compile: 8ms, render: 62ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 3.5min (compile: 4ms, render: 3.5min)
+ GET /api/settings 200 in 186ms (compile: 26ms, render: 160ms)
+ DELETE /api/listenkey?type=futures&listenKey=HJgbgY7gwVewX1MD98R6flXorw8qwR2BlV3OXomW3BqE74HaeR6oWAilzhPjyZ3q 200 in 280ms (compile: 12ms, render: 268ms)
+ GET /api/settings 200 in 142ms (compile: 3ms, render: 139ms)
+ GET /api/listenkey?type=futures 200 in 415ms (compile: 16ms, render: 399ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/listenkey?type=futures 200 in 191ms (compile: 3ms, render: 188ms)
+ GET /api/futures?type=positions 200 in 794ms (compile: 5ms, render: 789ms)
+ GET /api/futures?type=positions 200 in 149ms (compile: 7ms, render: 142ms)
+ GET /api/futures?type=dailyPnl 200 in 144ms (compile: 4ms, render: 140ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 223ms (compile: 8ms, render: 215ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 227ms (compile: 20ms, render: 207ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 18ms (compile: 7ms, render: 11ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 33ms (compile: 21ms, render: 12ms)
+ GET /api/futures?type=dailyPnl 200 in 151ms (compile: 7ms, render: 144ms)
+ GET /settings 200 in 65ms (compile: 9ms, render: 57ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 549ms (compile: 7ms, render: 541ms)
+ GET /api/settings 200 in 151ms (compile: 21ms, render: 131ms)
+ GET /api/futures?type=positions 200 in 156ms (compile: 30ms, render: 126ms)
+ DELETE /api/listenkey?type=futures&listenKey=vOBQVtGb8DqHbMlEkiJ2xyNMtJLyr7DppSogKI7EsjuaCDJ6gPVOhCJf5rmbNq2D 200 in 194ms (compile: 10ms, render: 184ms)
+ GET /api/listenkey?type=futures 200 in 306ms (compile: 65ms, render: 242ms)
+ GET /api/settings 200 in 161ms (compile: 7ms, render: 153ms)
+ GET /api/futures?type=positions 200 in 166ms (compile: 15ms, render: 152ms)
+ GET /api/futures?type=dailyPnl 200 in 158ms (compile: 9ms, render: 148ms)
+[TimeSync] Spot offset: 27039 ms
+ GET /api/futures?type=dailyPnl 200 in 140ms (compile: 7ms, render: 134ms)
+ GET /api/listenkey?type=futures 200 in 198ms (compile: 7ms, render: 191ms)
+ GET /api/spot 200 in 602ms (compile: 43ms, render: 559ms)
+ GET /api/spot 200 in 192ms (compile: 8ms, render: 184ms)
+ GET / 200 in 47ms (compile: 7ms, render: 40ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 1363ms (compile: 8ms, render: 1355ms)
+ GET /api/futures?type=positions 200 in 145ms (compile: 8ms, render: 137ms)
+ DELETE /api/listenkey?type=futures&listenKey=yy21ZcNRY0nv8lCPnOYKO5j5MP4c8irlsbrPb51OsUhdKrp5AkkanFHSRokrCm37 200 in 198ms (compile: 8ms, render: 190ms)
+ GET /api/settings 200 in 192ms (compile: 39ms, render: 153ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 19ms (compile: 8ms, render: 11ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 31ms (compile: 22ms, render: 9ms)
+ GET /api/listenkey?type=futures 200 in 264ms (compile: 24ms, render: 240ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 44ms (compile: 28ms, render: 16ms)
+ GET /api/futures?type=positions 200 in 177ms (compile: 4ms, render: 173ms)
+ GET /api/futures?type=dailyPnl 200 in 171ms (compile: 3ms, render: 168ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 10ms (compile: 4ms, render: 7ms)
+ GET /api/settings 200 in 226ms (compile: 34ms, render: 191ms)
+ GET /api/futures?type=dailyPnl 200 in 127ms (compile: 4ms, render: 123ms)
+ GET /api/listenkey?type=futures 200 in 181ms (compile: 4ms, render: 178ms)
+ GET /api/futures?type=orders 200 in 2.7s (compile: 9ms, render: 2.7s)
+ GET /api/futures?type=dailyPnl 200 in 2.9s (compile: 25ms, render: 2.9s)
+ GET /api/futures?type=account 200 in 2.9s (compile: 39ms, render: 2.9s)
+ GET /api/futures?type=account 200 in 138ms (compile: 6ms, render: 132ms)
+ GET /api/futures?type=orders 200 in 149ms (compile: 16ms, render: 133ms)
+ GET /api/futures?type=dailyPnl 200 in 158ms (compile: 31ms, render: 127ms)
+ GET /api/futures?type=dailyPnl 200 in 340ms (compile: 23ms, render: 317ms)
+[TimeSync] Futures offset: 26856 ms
+[TimeSync] Futures offset: 27005 ms
+ GET /api/futures?type=account 200 in 945ms (compile: 8ms, render: 937ms)
+ GET /api/futures?type=orders 200 in 1058ms (compile: 17ms, render: 1041ms)
+ GET /api/futures?type=dailyPnl 200 in 326ms (compile: 17ms, render: 309ms)
+ GET /api/futures?type=account 200 in 569ms (compile: 4ms, render: 565ms)
+ GET /api/futures?type=orders 200 in 743ms (compile: 11ms, render: 732ms)
+ GET /api/futures?type=dailyPnl 200 in 363ms (compile: 19ms, render: 343ms)
+ GET /api/futures?type=orders 200 in 751ms (compile: 13ms, render: 738ms)
+ GET /api/futures?type=account 200 in 768ms (compile: 6ms, render: 762ms)
+ GET /api/futures?type=dailyPnl 200 in 489ms (compile: 47ms, render: 442ms)
+ GET /api/futures?type=account 200 in 839ms (compile: 16ms, render: 823ms)
+ GET /api/futures?type=orders 200 in 987ms (compile: 30ms, render: 957ms)
+✓ Compiled in 1874ms
+ GET /api/settings 200 in 145ms (compile: 14ms, render: 131ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 662ms (compile: 4ms, render: 658ms)
+ GET /api/futures?type=dailyPnl 200 in 148ms (compile: 11ms, render: 138ms)
+ GET /api/futures?type=dailyPnl 200 in 795ms (compile: 18ms, render: 777ms)
+ GET /api/futures?type=orders 200 in 976ms (compile: 12ms, render: 964ms)
+ GET /api/futures?type=account 200 in 996ms (compile: 4ms, render: 992ms)
+ GET /api/futures?type=dailyPnl 200 in 334ms (compile: 11ms, render: 323ms)
+ GET /api/futures?type=orders 200 in 739ms (compile: 4ms, render: 735ms)
+ GET /api/futures?type=account 200 in 794ms (compile: 3ms, render: 791ms)
+ GET /api/futures?type=dailyPnl 200 in 357ms (compile: 19ms, render: 338ms)
+[TimeSync] Futures offset: 26853 ms
+[TimeSync] Futures offset: 27003 ms
+ GET /api/futures?type=account 200 in 911ms (compile: 4ms, render: 906ms)
+ GET /api/futures?type=orders 200 in 1056ms (compile: 12ms, render: 1045ms)
+ GET /api/futures?type=dailyPnl 200 in 366ms (compile: 28ms, render: 338ms)
+ GET /api/futures?type=orders 200 in 555ms (compile: 21ms, render: 535ms)
+ GET /api/futures?type=account 200 in 785ms (compile: 8ms, render: 777ms)
+ GET /api/futures?type=dailyPnl 200 in 376ms (compile: 6ms, render: 371ms)
+ GET /api/futures?type=orders 200 in 947ms (compile: 35ms, render: 912ms)
+ GET /api/futures?type=account 200 in 957ms (compile: 23ms, render: 934ms)
+ GET /api/futures?type=dailyPnl 200 in 357ms (compile: 25ms, render: 331ms)
+ GET /api/futures?type=orders 200 in 747ms (compile: 14ms, render: 733ms)
+ GET /api/futures?type=account 200 in 836ms (compile: 4ms, render: 831ms)
+ GET /api/futures?type=dailyPnl 200 in 296ms (compile: 12ms, render: 283ms)
+ GET /api/futures?type=orders 200 in 722ms (compile: 4ms, render: 718ms)
+ GET /api/futures?type=account 200 in 783ms (compile: 6ms, render: 777ms)
+ GET /api/futures?type=account 200 in 816ms (compile: 5ms, render: 811ms)
+ GET /api/futures?type=dailyPnl 200 in 826ms (compile: 7ms, render: 819ms)
+ GET /api/futures?type=orders 200 in 1033ms (compile: 7ms, render: 1026ms)
+ GET /api/futures?type=dailyPnl 200 in 305ms (compile: 17ms, render: 288ms)
+[TimeSync] Futures offset: 26848 ms
+ GET /api/futures?type=orders 200 in 1013ms (compile: 11ms, render: 1002ms)
+ GET /api/futures?type=account 200 in 1065ms (compile: 4ms, render: 1061ms)
+ GET /api/futures?type=dailyPnl 200 in 147ms (compile: 17ms, render: 130ms)
+ GET /api/futures?type=account 200 in 575ms (compile: 4ms, render: 571ms)
+ GET /api/futures?type=orders 200 in 712ms (compile: 10ms, render: 702ms)
+ GET /api/futures?type=dailyPnl 200 in 396ms (compile: 28ms, render: 368ms)
+ GET /api/futures?type=orders 200 in 824ms (compile: 16ms, render: 808ms)
+ GET /api/futures?type=account 200 in 1039ms (compile: 7ms, render: 1033ms)
+ GET /settings 200 in 204ms (compile: 119ms, render: 85ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 93s (compile: 14ms, render: 93s)
+ DELETE /api/listenkey?type=futures&listenKey=OwpRDPEhsWnipt1AuYNC4cwMCprfbdrbFGPVFzhm078FRmZi7V48MYoVPKZv2SWa 200 in 196ms (compile: 8ms, render: 188ms)
+ GET /api/listenkey?type=futures 200 in 211ms (compile: 11ms, render: 200ms)
+⨯ ./src/app/api/settings/route.js:40:1
+Parsing ecmascript source code failed
+[0m [90m 38 |[39m     [36mreturn[39m [33mNextResponse[39m[33m.[39mjson([33mDEFAULTS[39m)[33m;[39m
+ [90m 39 |[39m   }
+[31m[1m>[22m[39m[90m 40 |[39m }
+ [90m    |[39m [31m[1m^[22m[39m
+ [90m 41 |[39m
+ [90m 42 |[39m [36mexport[39m [36masync[39m [36mfunction[39m [33mPOST[39m(request) {
+ [90m 43 |[39m   [36mtry[39m {[0m
+
+Expression expected
+
+
+[TimeSync] Spot offset: 27079 ms
+ GET /api/listenkey?type=futures 200 in 240ms (compile: 6ms, render: 235ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/spot 200 in 703ms (compile: 21ms, render: 682ms)
+ GET /api/futures?type=positions 200 in 838ms (compile: 7ms, render: 831ms)
+ GET /api/futures?type=positions 500 in 1832ms (compile: 1304ms, render: 527ms)
+ GET /api/futures/stream?symbols=trxusdt 500 in 1803ms (compile: 1663ms, render: 140ms)
+ GET /api/spot 500 in 1992ms (compile: 1873ms, render: 119ms)
+ GET /api/futures?type=dailyPnl 500 in 1786ms (compile: 1709ms, render: 77ms)
+ GET /api/settings 500 in 2.7s (compile: 2.7s, render: 40ms)
+⨯ ./src/app/api/settings/route.js:40:1
+Parsing ecmascript source code failed
+[0m [90m 38 |[39m     [36mreturn[39m [33mNextResponse[39m[33m.[39mjson([33mDEFAULTS[39m)[33m;[39m
+ [90m 39 |[39m   }
+[31m[1m>[22m[39m[90m 40 |[39m }
+ [90m    |[39m [31m[1m^[22m[39m
+ [90m 41 |[39m
+ [90m 42 |[39m [36mexport[39m [36masync[39m [36mfunction[39m [33mPOST[39m(request) {
+ [90m 43 |[39m   [36mtry[39m {[0m
+
+Expression expected
+
+
+ GET /api/settings 500 in 60ms (compile: 16ms, render: 44ms)
+ GET /api/futures?type=dailyPnl 500 in 81ms (compile: 24ms, render: 57ms)
+ GET /api/futures?type=account 500 in 80ms (compile: 41ms, render: 40ms)
+ GET /api/futures?type=orders 500 in 80ms (compile: 56ms, render: 24ms)
+ GET /api/futures?type=account 500 in 76ms (compile: 25ms, render: 51ms)
+ GET /api/futures?type=orders 500 in 75ms (compile: 43ms, render: 32ms)
+ GET /api/futures?type=dailyPnl 500 in 75ms (compile: 58ms, render: 16ms)
+✓ Compiled in 620ms
+ GET /api/futures?type=account 500 in 275ms (compile: 120ms, render: 155ms)
+ GET /api/futures?type=orders 500 in 275ms (compile: 155ms, render: 119ms)
+ GET /api/futures?type=dailyPnl 500 in 275ms (compile: 212ms, render: 62ms)
+ GET /api/futures?type=account 500 in 108ms (compile: 52ms, render: 57ms)
+ GET /api/futures?type=orders 500 in 110ms (compile: 68ms, render: 42ms)
+ GET /api/futures?type=dailyPnl 500 in 110ms (compile: 84ms, render: 26ms)
+ GET /api/futures?type=account 500 in 98ms (compile: 44ms, render: 53ms)
+ GET /api/futures?type=orders 500 in 97ms (compile: 59ms, render: 39ms)
+ GET /api/futures?type=dailyPnl 500 in 96ms (compile: 72ms, render: 25ms)
+ GET /api/futures?type=account 500 in 133ms (compile: 59ms, render: 74ms)
+ GET /api/futures?type=orders 500 in 133ms (compile: 78ms, render: 55ms)
+ GET /api/futures?type=dailyPnl 500 in 133ms (compile: 96ms, render: 36ms)
+ GET /api/futures?type=orders 500 in 248ms (compile: 95ms, render: 153ms)
+ GET /api/futures?type=dailyPnl 500 in 247ms (compile: 134ms, render: 113ms)
+ GET /api/futures?type=account 500 in 251ms (compile: 184ms, render: 67ms)
+ GET /api/futures?type=account 500 in 150ms (compile: 64ms, render: 86ms)
+ GET /api/futures?type=orders 500 in 150ms (compile: 85ms, render: 65ms)
+ GET /api/futures?type=dailyPnl 500 in 150ms (compile: 105ms, render: 45ms)
+✓ Compiled in 132ms
+ GET /api/futures?type=account 500 in 76ms (compile: 27ms, render: 50ms)
+ GET /api/futures?type=orders 500 in 117ms (compile: 60ms, render: 58ms)
+ GET /api/futures?type=dailyPnl 500 in 116ms (compile: 90ms, render: 26ms)
+ GET /api/futures?type=account 500 in 69ms (compile: 32ms, render: 37ms)
+ GET /api/futures?type=orders 500 in 111ms (compile: 55ms, render: 56ms)
+ GET /api/futures?type=dailyPnl 500 in 110ms (compile: 79ms, render: 31ms)
+ GET /api/futures?type=account 500 in 39ms (compile: 11ms, render: 28ms)
+ GET /api/futures?type=orders 500 in 39ms (compile: 20ms, render: 19ms)
+ GET /api/futures?type=dailyPnl 500 in 39ms (compile: 28ms, render: 10ms)
+ GET /api/futures?type=account 500 in 53ms (compile: 18ms, render: 35ms)
+ GET /api/futures?type=orders 500 in 52ms (compile: 28ms, render: 24ms)
+ GET /api/futures?type=dailyPnl 500 in 52ms (compile: 39ms, render: 13ms)
+ GET /api/futures?type=account 500 in 44ms (compile: 12ms, render: 32ms)
+ GET /api/futures?type=orders 500 in 44ms (compile: 20ms, render: 24ms)
+ GET /api/futures?type=dailyPnl 500 in 44ms (compile: 28ms, render: 16ms)
+ GET /api/futures?type=account 500 in 67ms (compile: 15ms, render: 51ms)
+ GET /api/futures?type=orders 500 in 66ms (compile: 28ms, render: 38ms)
+ GET /api/futures?type=dailyPnl 500 in 66ms (compile: 44ms, render: 22ms)
+✓ Compiled in 51ms
+ GET /settings 200 in 307ms (compile: 130ms, render: 177ms)
+ GET /api/futures?type=positions 500 in 156ms (compile: 26ms, render: 130ms)
+ GET /api/listenkey?type=futures 500 in 172ms (compile: 128ms, render: 44ms)
+ GET /api/spot 500 in 183ms (compile: 141ms, render: 42ms)
+ GET /api/compound 500 in 200ms (compile: 160ms, render: 40ms)
+ GET /api/settings 200 in 488ms (compile: 117ms, render: 371ms)
+[TimeSync] Futures offset: 27007 ms
+[TimeSync] Futures offset: 27010 ms
+[TimeSync] Futures offset: 27078 ms
+[TimeSync] Futures offset: 27074 ms
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 1071ms (compile: 17ms, render: 1054ms)
+ GET /api/listenkey?type=futures 200 in 167ms (compile: 2ms, render: 164ms)
+✓ Compiled in 129ms
+ GET /api/settings 200 in 374ms (compile: 7ms, render: 368ms)
+[TimeSync] Futures offset: 27015 ms
+[TimeSync] Futures offset: 27039 ms
+[TimeSync] Futures offset: 27028 ms
+[TimeSync] Futures offset: 27034 ms
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 1219ms (compile: 20ms, render: 1198ms)
+ GET /api/futures?type=dailyPnl 200 in 574ms (compile: 6ms, render: 568ms)
+ GET /api/futures?type=dailyPnl 200 in 317ms (compile: 15ms, render: 302ms)
+ GET /api/futures?type=orders 200 in 864ms (compile: 11ms, render: 853ms)
+ GET /api/futures?type=account 200 in 900ms (compile: 4ms, render: 896ms)
+✓ Compiled in 100ms
+ GET /api/settings 200 in 138ms (compile: 5ms, render: 133ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 661ms (compile: 14ms, render: 647ms)
+ GET /api/futures?type=dailyPnl 200 in 134ms (compile: 6ms, render: 129ms)
+ GET /api/futures?type=dailyPnl 200 in 326ms (compile: 15ms, render: 310ms)
+ GET /api/futures?type=account 200 in 754ms (compile: 7ms, render: 748ms)
+ GET /api/futures?type=orders 200 in 755ms (compile: 9ms, render: 745ms)
+ GET /api/futures?type=dailyPnl 200 in 339ms (compile: 20ms, render: 319ms)
+ GET /api/futures?type=orders 200 in 729ms (compile: 12ms, render: 718ms)
+ GET /api/futures?type=account 200 in 944ms (compile: 4ms, render: 940ms)
+ GET /api/futures?type=dailyPnl 200 in 320ms (compile: 10ms, render: 310ms)
+ GET /api/futures?type=orders 200 in 723ms (compile: 6ms, render: 717ms)
+ GET /api/futures?type=account 200 in 749ms (compile: 3ms, render: 747ms)
+ GET /api/futures?type=dailyPnl 200 in 327ms (compile: 11ms, render: 315ms)
+ GET /api/futures?type=orders 200 in 731ms (compile: 7ms, render: 723ms)
+ GET /api/futures?type=account 200 in 960ms (compile: 3ms, render: 958ms)
+[TimeSync] Futures offset: 26868 ms
 [TimeSync] Futures offset: 26863 ms
-[TimeSync] Futures offset: 26810 ms
- GET /api/futures?type=account 200 in 9.2s (compile: 1955µs, render: 9.2s)
- GET /api/futures?type=orders 200 in 9.1s (compile: 1522µs, render: 9.1s)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 1870µs, render: 8.9s)
- GET /api/futures?type=orders 200 in 9.0s (compile: 1439µs, render: 9.0s)
- GET /api/futures?type=account 200 in 9.2s (compile: 1655µs, render: 9.2s)
- GET /new-order 200 in 43ms (compile: 23ms, render: 20ms)
- GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1445µs, render: 9.3s)
- GET /api/futures?type=orders 200 in 9.8s (compile: 3ms, render: 9.8s)
- GET /api/futures?type=account 200 in 9.8s (compile: 6ms, render: 9.8s)
- GET /api/futures?type=dailyPnl 200 in 9.8s (compile: 1978µs, render: 9.8s)
- GET /api/futures?type=account 200 in 9.3s (compile: 3ms, render: 9.3s)
- GET /api/futures?type=account 200 in 7.6s (compile: 5ms, render: 7.6s)
- GET /new-order 200 in 18ms (compile: 2ms, render: 15ms)
- DELETE /api/listenkey?type=futures&listenKey=lFuaxPxDPYJMvJ6onWj8FopTkuT2Wmp81hmihYDbJ3i3BURJfFG1krdmQ5ClJyVD 200 in 177ms (compile: 3ms, render: 173ms)
- GET /api/futures?type=orders 200 in 10.2s (compile: 7ms, render: 10.2s)
- GET /api/futures?type=orders 200 in 8.6s (compile: 1903µs, render: 8.6s)
- GET /api/futures?type=dailyPnl 200 in 10.2s (compile: 10ms, render: 10.2s)
- GET /api/futures?type=dailyPnl 200 in 5.7s (compile: 2ms, render: 5.7s)
- GET /api/prices?symbols=BTCUSDT 200 in 654ms (compile: 34ms, render: 620ms)
-[TimeSync] Futures offset: 26710 ms
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.9s (compile: 10ms, render: 4.9s)
- GET /api/futures?type=account 200 in 9.5s (compile: 2ms, render: 9.5s)
- GET /api/futures?type=symbols 200 in 9.9s (compile: 1536µs, render: 9.9s)
- GET /api/futures?type=orders 200 in 9.8s (compile: 2ms, render: 9.8s)
- GET /api/prices?symbols=BTCUSDT 200 in 563ms (compile: 3ms, render: 560ms)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 3ms, render: 8.9s)
- GET /api/futures?type=dailyPnl 200 in 4.7s (compile: 5ms, render: 4.7s)
- GET /api/futures?type=shortlist3d&limit=200 200 in 14.4s (compile: 3ms, render: 14.4s)
- GET /api/futures?type=orders 200 in 8.9s (compile: 2ms, render: 8.9s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 17.6s (compile: 8ms, render: 17.6s)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.5s (compile: 4ms, render: 4.5s)
- GET /api/prices?symbols=BTCUSDT 200 in 556ms (compile: 3ms, render: 553ms)
- GET /api/futures?type=account 200 in 8.9s (compile: 3ms, render: 8.9s)
- GET /api/futures?type=account 200 in 6.1s (compile: 8ms, render: 6.0s)
- GET /api/futures?type=orders 200 in 8.9s (compile: 3ms, render: 8.9s)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 2ms, render: 8.8s)
- GET /api/futures?type=dailyPnl 200 in 7.4s (compile: 3ms, render: 7.4s)
- GET /api/futures?type=symbols 200 in 9.1s (compile: 4ms, render: 9.1s)
- GET /api/futures?type=account 200 in 9.0s (compile: 3ms, render: 9.0s)
- GET /api/futures?type=orders 200 in 9.1s (compile: 8ms, render: 9.1s)
- GET /api/prices?symbols=BTCUSDT 200 in 553ms (compile: 3ms, render: 550ms)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.5s (compile: 3ms, render: 4.5s)
- GET /api/futures?type=shortlist3d&limit=200 200 in 8.9s (compile: 2ms, render: 8.9s)
-[TimeSync] Futures offset: 26699 ms
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.0s (compile: 8ms, render: 9.0s)
- GET /api/futures?type=orders 200 in 9.3s (compile: 2ms, render: 9.3s)
- GET /api/futures?type=account 200 in 9.2s (compile: 3ms, render: 9.2s)
- GET /api/futures?type=account 200 in 6.9s (compile: 4ms, render: 6.9s)
- GET /api/futures?type=account 200 in 6.0s (compile: 2ms, render: 6.0s)
- GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 3ms, render: 9.3s)
- GET /api/futures?type=account 200 in 9.2s (compile: 3ms, render: 9.2s)
- GET /api/futures?type=account 200 in 6.3s (compile: 3ms, render: 6.3s)
- GET /settings 200 in 99ms (compile: 54ms, render: 45ms)
- GET /api/futures?type=symbols 200 in 9.2s (compile: 3ms, render: 9.2s)
- GET /api/futures?type=symbols 200 in 6.1s (compile: 4ms, render: 6.1s)
- GET /api/prices?symbols=BTCUSDT 200 in 604ms (compile: 5ms, render: 599ms)
- GET /api/futures?type=shortlist3d&limit=200 200 in 8.9s (compile: 8ms, render: 8.9s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.9s (compile: 11ms, render: 8.9s)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.8s (compile: 2ms, render: 4.8s)
- GET /api/futures?type=account 200 in 9.9s (compile: 3ms, render: 9.9s)
- GET /api/futures?type=account 200 in 9.2s (compile: 3ms, render: 9.2s)
- GET /api/futures?type=account 200 in 7.3s (compile: 9ms, render: 7.3s)
- GET /api/futures?type=shortlist3d&limit=200 200 in 9.6s (compile: 2ms, render: 9.6s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.2s (compile: 3ms, render: 9.2s)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.5s (compile: 9ms, render: 4.5s)
- GET /api/futures?type=symbols 200 in 9.5s (compile: 3ms, render: 9.5s)
- GET /api/futures?type=shortlist3d&limit=200 200 in 8.9s (compile: 14ms, render: 8.9s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.9s (compile: 20ms, render: 8.9s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 6.9s (compile: 2ms, render: 6.9s)
- GET /api/futures?type=account 200 in 9.0s (compile: 4ms, render: 9.0s)
- GET /api/prices?symbols=BTCUSDT 200 in 847ms (compile: 6ms, render: 841ms)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.5s (compile: 2ms, render: 4.5s)
- GET /api/futures?type=symbols 200 in 9.3s (compile: 15ms, render: 9.3s)
- GET /api/futures?type=account 200 in 9.2s (compile: 2ms, render: 9.2s)
- GET /api/futures?type=account 200 in 5.0s (compile: 1587µs, render: 5.0s)
- GET /api/prices?symbols=BTCUSDT 200 in 408ms (compile: 1537µs, render: 406ms)
- GET /api/futures?type=shortlist3d&limit=200 200 in 8.8s (compile: 10ms, render: 8.8s)
-[TimeSync] Futures offset: 26711 ms
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.5s (compile: 1599µs, render: 4.4s)
- GET /api/futures?type=symbols 200 in 9.1s (compile: 1656µs, render: 9.1s)
- GET /api/futures?type=account 200 in 9.1s (compile: 1969µs, render: 9.1s)
- GET /api/futures?type=shortlist3d&limit=200 200 in 8.7s (compile: 5ms, render: 8.7s)
- GET /api/prices?symbols=BTCUSDT 200 in 682ms (compile: 1837µs, render: 681ms)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.7s (compile: 2ms, render: 8.7s)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.4s (compile: 1709µs, render: 4.4s)
- GET /api/futures?type=symbols 200 in 9.1s (compile: 2ms, render: 9.0s)
- GET /api/futures?type=account 200 in 9.0s (compile: 1841µs, render: 9.0s)
- GET /api/prices?symbols=BTCUSDT 200 in 456ms (compile: 2ms, render: 454ms)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.4s (compile: 1926µs, render: 4.4s)
- GET /api/futures?type=shortlist3d&limit=200 200 in 8.7s (compile: 1908µs, render: 8.7s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.7s (compile: 1956µs, render: 8.7s)
- GET /api/futures?type=symbols 200 in 8.9s (compile: 3ms, render: 8.9s)
- GET /api/futures?type=account 200 in 9.2s (compile: 6ms, render: 9.2s)
- GET /api/prices?symbols=BTCUSDT 200 in 455ms (compile: 1586µs, render: 454ms)
- GET /api/futures?type=shortlist3d&limit=200 200 in 8.8s (compile: 2ms, render: 8.8s)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.5s (compile: 1678µs, render: 4.5s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.1s (compile: 2ms, render: 9.1s)
- GET /api/futures?type=symbols 200 in 9.5s (compile: 1838µs, render: 9.5s)
- GET /api/futures?type=account 200 in 9.3s (compile: 1900µs, render: 9.3s)
- GET /api/prices?symbols=BTCUSDT 200 in 542ms (compile: 1778µs, render: 540ms)
- GET /api/futures?type=shortlist3d&limit=200 200 in 9.2s (compile: 1863µs, render: 9.2s)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.5s (compile: 2ms, render: 4.5s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.0s (compile: 1821µs, render: 9.0s)
- GET /api/futures?type=symbols 200 in 9.2s (compile: 5ms, render: 9.2s)
- GET /api/futures?type=account 200 in 9.4s (compile: 1520µs, render: 9.4s)
- GET /api/prices?symbols=BTCUSDT 200 in 614ms (compile: 2ms, render: 612ms)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.6s (compile: 1680µs, render: 4.6s)
-[TimeSync] Futures offset: 26800 ms
- GET /api/futures?type=shortlist3d&limit=200 200 in 9.1s (compile: 2ms, render: 9.1s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.0s (compile: 1702µs, render: 9.0s)
- GET /api/futures?type=symbols 200 in 9.6s (compile: 1555µs, render: 9.6s)
- GET /api/futures?type=account 200 in 9.5s (compile: 6ms, render: 9.5s)
- GET /api/prices?symbols=BTCUSDT 200 in 289ms (compile: 1659µs, render: 287ms)
- GET /api/futures?type=shortlist3d&limit=200 200 in 8.7s (compile: 6ms, render: 8.7s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.7s (compile: 1933µs, render: 8.7s)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.4s (compile: 3ms, render: 4.4s)
- GET /api/futures?type=symbols 200 in 9.2s (compile: 5ms, render: 9.2s)
- GET /api/futures?type=account 200 in 8.9s (compile: 3ms, render: 8.9s)
- GET /api/prices?symbols=BTCUSDT 200 in 555ms (compile: 6ms, render: 549ms)
- GET /api/futures?type=shortlist3d&limit=200 200 in 9.1s (compile: 2ms, render: 9.1s)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.7s (compile: 2ms, render: 4.7s)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.1s (compile: 3ms, render: 9.1s)
- GET /api/futures?type=symbols 200 in 9.5s (compile: 1948µs, render: 9.5s)
- GET /api/futures?type=account 200 in 9.4s (compile: 1611µs, render: 9.4s)
- GET /api/prices?symbols=BTCUSDT 200 in 664ms (compile: 1860µs, render: 662ms)
- GET /api/futures?type=shortlist3d&limit=200 200 in 9.5s (compile: 5ms, render: 9.5s)
- GET /api/futures?type=symbols 200 in 5.5s (compile: 1342µs, render: 5.5s)
- GET /new-order 200 in 165ms (compile: 4ms, render: 161ms)
- GET /api/futures?type=account 200 in 2.0s (compile: 1776µs, render: 2.0s)
- GET /api/compound 200 in 1500ms (compile: 2ms, render: 1498ms)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 5.6s (compile: 1542µs, render: 5.6s)
- GET /api/futures?type=shortlist3d&limit=200 200 in 788ms (compile: 3ms, render: 786ms)
- GET /api/prices?symbols=BTCUSDT 200 in 298ms (compile: 15ms, render: 282ms)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.9s (compile: 3ms, render: 4.9s)
- GET / 200 in 16ms (compile: 2ms, render: 14ms)
-[FuturesPositions] openAlgoOrders raw: []
- GET /api/futures?type=account 200 in 7.4s (compile: 9ms, render: 7.4s)
- GET / 200 in 14ms (compile: 3ms, render: 11ms)
- GET /api/futures?type=shortlist3d&limit=200 200 in 8.6s (compile: 10ms, render: 8.5s)
- GET /api/futures?type=positions 200 in 8.6s (compile: 2ms, render: 8.6s)
- GET /api/futures?type=symbols 200 in 8.9s (compile: 5ms, render: 8.9s)
- GET /api/futures?type=account 200 in 1485ms (compile: 1515µs, render: 1484ms)
- GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.9s (compile: 4ms, render: 8.9s)
- GET /api/compound 200 in 4.0s (compile: 2ms, render: 4.0s)
- GET / 200 in 58ms (compile: 3ms, render: 55ms)
- GET /api/listenkey?type=futures 200 in 194ms (compile: 8ms, render: 187ms)
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
-[TimeSync] Futures offset: 26711 ms
-Redis GET error: TypeError: fetch failed
-    at async GET (src\app\api\compound\route.js:13:18)
-  11 | export async function GET() {
-  12 |   try {
-> 13 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
-  15 |   } catch (error) {
-  16 |     console.error('Redis GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/compound 200 in 4.5s (compile: 13ms, render: 4.4s)
-Settings GET error: TypeError: fetch failed
-    at async GET (src\app\api\settings\route.js:31:18)
-  29 | export async function GET() {
-  30 |   try {
-> 31 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
-  33 |   } catch (error) {
-  34 |     console.error('Settings GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/settings 200 in 4.5s (compile: 18ms, render: 4.5s)
-[FuturesPositions] openAlgoOrders raw: []
- GET /api/futures?type=positions 200 in 9.3s (compile: 3ms, render: 9.3s)
- GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 9ms (compile: 3ms, render: 6ms)
- GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 15ms (compile: 10ms, render: 5ms)
- GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 6ms (compile: 3ms, render: 3ms)
- GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 11ms (compile: 7ms, render: 4ms)
-[FuturesPositions] openAlgoOrders raw: []
- GET /api/futures?type=dailyPnl 200 in 9.5s (compile: 3ms, render: 9.5s)
- GET /api/futures?type=positions 200 in 9.5s (compile: 3ms, render: 9.5s)
- GET /api/futures?type=orders 200 in 9.0s (compile: 4ms, render: 9.0s)
- GET /api/futures?type=account 200 in 9.1s (compile: 1829µs, render: 9.1s)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 1526µs, render: 8.9s)
- GET /settings 200 in 18ms (compile: 4ms, render: 14ms)
- GET /api/futures?type=orders 200 in 8.9s (compile: 1710µs, render: 8.9s)
- GET /api/futures?type=account 200 in 9.1s (compile: 1609µs, render: 9.1s)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 1393µs, render: 8.9s)
-[TimeSync] Futures offset: 26697 ms
- GET /api/futures?type=orders 200 in 9.0s (compile: 1760µs, render: 9.0s)
- GET /api/futures?type=account 200 in 9.0s (compile: 1588µs, render: 9.0s)
- GET /api/futures?type=dailyPnl 200 in 8.8s (compile: 1634µs, render: 8.8s)
- DELETE /api/listenkey?type=futures&listenKey=GUPxxPGrhupRsvqCv1s8CIwFXpjVo9ggCo4O6LpgIkB4ZaZ1KJB8uieg1VuJ4SCk 200 in 329ms (compile: 3ms, render: 326ms)
- GET /api/listenkey?type=futures 200 in 178ms (compile: 1793µs, render: 176ms)
-[TimeSync] Spot offset: 26876 ms
- GET /api/spot 200 in 520ms (compile: 1861µs, render: 518ms)
- GET /api/listenkey?type=futures 200 in 178ms (compile: 2ms, render: 175ms)
- GET /api/spot 200 in 189ms (compile: 1731µs, render: 187ms)
-Settings GET error: TypeError: fetch failed
-    at async GET (src\app\api\settings\route.js:31:18)
-  29 | export async function GET() {
-  30 |   try {
-> 31 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
-  33 |   } catch (error) {
-  34 |     console.error('Settings GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/settings 200 in 4.5s (compile: 6ms, render: 4.5s)
- GET /api/futures?type=orders 200 in 9.0s (compile: 2ms, render: 9.0s)
- GET /api/futures?type=account 200 in 9.1s (compile: 3ms, render: 9.1s)
-[FuturesPositions] openAlgoOrders raw: []
- GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1612µs, render: 9.3s)
-Settings GET error: TypeError: fetch failed
-    at async GET (src\app\api\settings\route.js:31:18)
-  29 | export async function GET() {
-  30 |   try {
-> 31 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
-  33 |   } catch (error) {
-  34 |     console.error('Settings GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/settings 200 in 4.5s (compile: 4ms, render: 4.5s)
- GET /api/futures?type=positions 200 in 9.4s (compile: 10ms, render: 9.4s)
- GET /api/futures?type=orders 200 in 9.1s (compile: 10ms, render: 9.1s)
- GET /api/futures?type=account 200 in 9.1s (compile: 2ms, render: 9.1s)
-[FuturesPositions] openAlgoOrders raw: []
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 1555µs, render: 8.9s)
- GET /api/futures?type=dailyPnl 200 in 8.5s (compile: 2ms, render: 8.5s)
- GET /api/futures?type=positions 200 in 9.1s (compile: 36ms, render: 9.0s)
-[TimeSync] Futures offset: 26706 ms
- GET /api/futures?type=account 200 in 9.2s (compile: 1980µs, render: 9.2s)
- GET /api/futures?type=account 200 in 5.3s (compile: 1551µs, render: 5.3s)
- GET /api/futures?type=orders 200 in 9.1s (compile: 1971µs, render: 9.1s)
- GET /api/futures?type=orders 200 in 8.9s (compile: 1556µs, render: 8.9s)
- GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1337µs, render: 9.3s)
- GET /api/futures?type=account 200 in 8.9s (compile: 1472µs, render: 8.9s)
- GET /api/futures?type=orders 200 in 9.1s (compile: 1523µs, render: 9.1s)
- GET /api/futures?type=dailyPnl 200 in 8.8s (compile: 1700µs, render: 8.8s)
- GET /api/futures?type=account 200 in 8.9s (compile: 2ms, render: 8.9s)
- GET /api/futures?type=orders 200 in 8.9s (compile: 1514µs, render: 8.9s)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 3ms, render: 8.9s)
- GET /api/futures?type=dailyPnl 200 in 7.7s (compile: 1787µs, render: 7.7s)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 4ms, render: 8.9s)
- GET /api/futures?type=dailyPnl 200 in 4.9s (compile: 3ms, render: 4.9s)
- GET /api/futures?type=account 200 in 8.9s (compile: 7ms, render: 8.9s)
- GET /api/futures?type=orders 200 in 9.2s (compile: 4ms, render: 9.2s)
-[TimeSync] Futures offset: 26892 ms
- GET /api/futures?type=dailyPnl 200 in 9.4s (compile: 3ms, render: 9.4s)
- GET /api/futures?type=account 200 in 8.9s (compile: 5ms, render: 8.9s)
- GET /api/futures?type=orders 200 in 8.9s (compile: 4ms, render: 8.9s)
- GET /api/futures?type=orders 200 in 8.3s (compile: 4ms, render: 8.3s)
- GET / 200 in 32ms (compile: 5ms, render: 27ms)
- DELETE /api/listenkey?type=futures&listenKey=b9NDP29MJvCvaHUp0rhWPFldCt0sRveB2rwYh52WTeTrKQQux5bEVcQYUpf5LH45 200 in 177ms (compile: 4ms, render: 173ms)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 6ms, render: 8.8s)
- GET /api/futures?type=dailyPnl 200 in 5.6s (compile: 1497µs, render: 5.6s)
- GET /api/futures?type=account 200 in 8.9s (compile: 2ms, render: 8.9s)
- GET /api/futures?type=account 200 in 4.9s (compile: 1370µs, render: 4.9s)
- GET /api/listenkey?type=futures 200 in 165ms (compile: 3ms, render: 162ms)
+[TimeSync] Futures offset: 27055 ms
+ GET /api/futures?type=orders 200 in 942ms (compile: 7ms, render: 935ms)
+ GET /api/futures?type=account 200 in 998ms (compile: 3ms, render: 995ms)
+ GET /api/futures?type=dailyPnl 200 in 1246ms (compile: 12ms, render: 1234ms)
+ GET /api/futures?type=dailyPnl 200 in 344ms (compile: 14ms, render: 330ms)
+ GET /api/futures?type=orders 200 in 583ms (compile: 9ms, render: 575ms)
+ GET /api/futures?type=account 200 in 637ms (compile: 3ms, render: 634ms)
+ GET /api/futures?type=dailyPnl 200 in 381ms (compile: 24ms, render: 357ms)
+ GET /api/futures?type=orders 200 in 831ms (compile: 14ms, render: 816ms)
+ GET /api/futures?type=account 200 in 1089ms (compile: 5ms, render: 1084ms)
+✓ Compiled in 87ms
+ GET /api/settings 200 in 132ms (compile: 5ms, render: 126ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 742ms (compile: 13ms, render: 729ms)
+ GET /api/futures?type=dailyPnl 200 in 146ms (compile: 9ms, render: 137ms)
+ GET /api/futures?type=dailyPnl 200 in 449ms (compile: 19ms, render: 430ms)
+ GET /api/futures?type=orders 200 in 817ms (compile: 12ms, render: 805ms)
+ GET /api/futures?type=account 200 in 822ms (compile: 5ms, render: 818ms)
+ GET /compound 200 in 452ms (compile: 363ms, render: 88ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 53s (compile: 6ms, render: 53s)
+ GET /api/compound 200 in 156ms (compile: 19ms, render: 137ms)
+ DELETE /api/listenkey?type=futures&listenKey=yYstngWydjsyh4bIuIZcYTKLYnfYa7GYz2CuhnhO32AJoaP0IvJJl127LESBd89Q 200 in 197ms (compile: 7ms, render: 190ms)
+ GET /api/compound 200 in 142ms (compile: 6ms, render: 136ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures 200 in 822ms (compile: 6ms, render: 816ms)
+ GET /api/futures 200 in 142ms (compile: 3ms, render: 138ms)
+ POST /api/compound 200 in 379ms (compile: 5ms, render: 373ms)
+✓ Compiled in 124ms
+ GET /settings 200 in 78ms (compile: 51ms, render: 27ms)
+ GET /api/settings 200 in 394ms (compile: 11ms, render: 384ms)
+[TimeSync] Spot offset: 27091 ms
+ GET /api/listenkey?type=futures 200 in 461ms (compile: 6ms, render: 455ms)
+ GET /api/settings 200 in 133ms (compile: 2ms, render: 131ms)
+ GET /api/spot 200 in 595ms (compile: 12ms, render: 583ms)
+ GET /api/listenkey?type=futures 200 in 189ms (compile: 1545µs, render: 187ms)
+[TimeSync] Futures offset: 27001 ms
+[TimeSync] Futures offset: 27008 ms
+[TimeSync] Futures offset: 27006 ms
+[TimeSync] Futures offset: 27021 ms
+ GET /api/spot 200 in 178ms (compile: 3ms, render: 176ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 1256ms (compile: 1607µs, render: 1254ms)
+ GET /api/futures?type=positions 200 in 136ms (compile: 1984µs, render: 134ms)
+ GET /api/futures?type=dailyPnl 200 in 599ms (compile: 1625µs, render: 597ms)
+ GET /api/futures?type=dailyPnl 200 in 133ms (compile: 3ms, render: 130ms)
+ GET /api/futures?type=dailyPnl 200 in 334ms (compile: 8ms, render: 327ms)
+ GET /api/futures?type=orders 200 in 955ms (compile: 5ms, render: 950ms)
+ GET /api/futures?type=account 200 in 979ms (compile: 2ms, render: 977ms)
+ GET /api/futures?type=dailyPnl 200 in 365ms (compile: 6ms, render: 359ms)
+ GET /api/futures?type=orders 200 in 764ms (compile: 1926µs, render: 762ms)
+ GET /api/futures?type=account 200 in 825ms (compile: 15ms, render: 810ms)
+ GET /api/futures?type=dailyPnl 200 in 414ms (compile: 9ms, render: 405ms)
+ GET /api/futures?type=account 200 in 900ms (compile: 4ms, render: 897ms)
+ GET /api/futures?type=orders 200 in 1027ms (compile: 7ms, render: 1020ms)
+ GET /api/futures?type=dailyPnl 200 in 149ms (compile: 9ms, render: 140ms)
+ GET /api/futures?type=orders 200 in 792ms (compile: 6ms, render: 786ms)
+ GET /api/futures?type=account 200 in 812ms (compile: 1893µs, render: 811ms)
+ GET /api/futures?type=dailyPnl 200 in 362ms (compile: 13ms, render: 349ms)
+ GET /api/futures?type=account 200 in 1543ms (compile: 3ms, render: 1540ms)
+ GET /api/futures?type=orders 200 in 1548ms (compile: 8ms, render: 1540ms)
+ POST /api/settings 200 in 272ms (compile: 2ms, render: 270ms)
+ GET /api/futures?type=dailyPnl 200 in 145ms (compile: 11ms, render: 134ms)
+[TimeSync] Futures offset: 26869 ms
+[TimeSync] Futures offset: 26876 ms
+ GET /api/futures?type=orders 200 in 781ms (compile: 7ms, render: 774ms)
+ GET /api/futures?type=account 200 in 792ms (compile: 3ms, render: 789ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 31.0s (compile: 1409µs, render: 31.0s)
+ GET /settings 200 in 181ms (compile: 3ms, render: 179ms)
+ GET /api/settings 200 in 148ms (compile: 4ms, render: 144ms)
+ GET /api/compound 200 in 150ms (compile: 10ms, render: 140ms)
+ GET /api/listenkey?type=futures 200 in 186ms (compile: 2ms, render: 184ms)
+[TimeSync] Spot offset: 27049 ms
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/spot 200 in 562ms (compile: 16ms, render: 546ms)
+ GET /api/futures?type=positions 200 in 784ms (compile: 4ms, render: 781ms)
+ GET /api/futures?type=positions 200 in 149ms (compile: 3ms, render: 146ms)
+ GET /api/futures?type=dailyPnl 200 in 601ms (compile: 14ms, render: 588ms)
+ GET /api/futures?type=dailyPnl 200 in 363ms (compile: 8ms, render: 354ms)
+ GET /api/futures?type=orders 200 in 988ms (compile: 5ms, render: 982ms)
+ GET /api/futures?type=account 200 in 994ms (compile: 2ms, render: 991ms)
+ GET /api/futures?type=dailyPnl 200 in 345ms (compile: 13ms, render: 332ms)
+ GET /api/futures?type=orders 200 in 777ms (compile: 9ms, render: 768ms)
+ GET /api/futures?type=account 200 in 823ms (compile: 3ms, render: 820ms)
+ GET /api/futures?type=dailyPnl 200 in 388ms (compile: 9ms, render: 379ms)
+ GET /api/futures?type=orders 200 in 842ms (compile: 6ms, render: 836ms)
+ GET /api/futures?type=account 200 in 1097ms (compile: 3ms, render: 1095ms)
+ GET /api/futures?type=dailyPnl 200 in 701ms (compile: 10ms, render: 691ms)
+ GET /api/futures?type=orders 200 in 1057ms (compile: 7ms, render: 1050ms)
+ GET /api/futures?type=account 200 in 1162ms (compile: 2ms, render: 1159ms)
+ GET /api/futures?type=dailyPnl 200 in 390ms (compile: 10ms, render: 380ms)
+ GET /api/futures?type=account 200 in 610ms (compile: 4ms, render: 606ms)
+ GET /api/futures?type=orders 200 in 777ms (compile: 6ms, render: 771ms)
+ GET /api/futures?type=dailyPnl 200 in 364ms (compile: 18ms, render: 347ms)
+[TimeSync] Futures offset: 26855 ms
+[TimeSync] Futures offset: 26856 ms
+ GET /api/futures?type=orders 200 in 960ms (compile: 5ms, render: 955ms)
+ GET /api/futures?type=account 200 in 1020ms (compile: 11ms, render: 1008ms)
+ GET /api/futures?type=account 200 in 615ms (compile: 6ms, render: 609ms)
+ GET /api/futures?type=orders 200 in 866ms (compile: 13ms, render: 854ms)
+ GET /api/futures?type=dailyPnl 200 in 877ms (compile: 20ms, render: 857ms)
+ GET /api/futures?type=dailyPnl 200 in 373ms (compile: 3ms, render: 369ms)
+ GET /api/futures?type=orders 200 in 750ms (compile: 14ms, render: 737ms)
+ GET /api/futures?type=account 200 in 810ms (compile: 5ms, render: 805ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 44s (compile: 3ms, render: 44s)
+ GET /settings 200 in 66ms (compile: 3ms, render: 63ms)
+ GET /api/settings 200 in 135ms (compile: 4ms, render: 131ms)
+ GET /api/compound 200 in 151ms (compile: 27ms, render: 124ms)
+ GET /api/listenkey?type=futures 200 in 185ms (compile: 11ms, render: 175ms)
+[TimeSync] Spot offset: 27030 ms
+ GET /api/spot 200 in 533ms (compile: 18ms, render: 514ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 844ms (compile: 5ms, render: 840ms)
+ GET /api/futures?type=positions 200 in 142ms (compile: 3ms, render: 139ms)
+ GET /api/futures?type=dailyPnl 200 in 137ms (compile: 2ms, render: 135ms)
+ GET /api/futures?type=dailyPnl 200 in 333ms (compile: 9ms, render: 324ms)
+ GET /api/futures?type=orders 200 in 877ms (compile: 6ms, render: 872ms)
+ GET /api/futures?type=account 200 in 917ms (compile: 2ms, render: 915ms)
+ GET /api/futures?type=dailyPnl 200 in 324ms (compile: 12ms, render: 312ms)
+ GET /api/futures?type=orders 200 in 744ms (compile: 7ms, render: 737ms)
+ GET /api/futures?type=account 200 in 798ms (compile: 3ms, render: 795ms)
+ GET /api/futures?type=dailyPnl 200 in 314ms (compile: 8ms, render: 305ms)
+ GET /api/futures?type=orders 200 in 732ms (compile: 6ms, render: 727ms)
+ GET /api/futures?type=account 200 in 749ms (compile: 2ms, render: 747ms)
+ GET /api/futures?type=dailyPnl 200 in 399ms (compile: 9ms, render: 391ms)
+[TimeSync] Futures offset: 26854 ms
+[TimeSync] Futures offset: 26857 ms
+ GET /api/futures?type=orders 200 in 909ms (compile: 5ms, render: 904ms)
+ GET /api/futures?type=account 200 in 928ms (compile: 2ms, render: 926ms)
+ GET /api/futures?type=dailyPnl 200 in 780ms (compile: 18ms, render: 763ms)
+ GET /api/futures?type=account 200 in 831ms (compile: 5ms, render: 826ms)
+ GET /api/futures?type=orders 200 in 968ms (compile: 11ms, render: 956ms)
+ GET /api/futures?type=dailyPnl 200 in 313ms (compile: 18ms, render: 295ms)
+ GET /api/futures?type=orders 200 in 733ms (compile: 11ms, render: 722ms)
+ GET /api/futures?type=account 200 in 767ms (compile: 4ms, render: 762ms)
+ GET /api/futures?type=dailyPnl 200 in 321ms (compile: 22ms, render: 299ms)
+ GET /api/futures?type=orders 200 in 720ms (compile: 14ms, render: 706ms)
+ GET /api/futures?type=account 200 in 769ms (compile: 7ms, render: 763ms)
+ GET /api/futures?type=dailyPnl 200 in 467ms (compile: 24ms, render: 443ms)
+ GET /api/futures?type=orders 200 in 803ms (compile: 13ms, render: 790ms)
+ GET /api/futures?type=account 200 in 816ms (compile: 4ms, render: 813ms)
+ GET /api/futures?type=dailyPnl 200 in 324ms (compile: 9ms, render: 315ms)
+ GET /api/futures?type=orders 200 in 724ms (compile: 5ms, render: 719ms)
+ GET /api/futures?type=account 200 in 775ms (compile: 3ms, render: 773ms)
+ GET /settings 200 in 46ms (compile: 2ms, render: 44ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 47s (compile: 6ms, render: 47s)
+ GET /api/settings 200 in 139ms (compile: 4ms, render: 135ms)
+ GET /api/compound 200 in 132ms (compile: 6ms, render: 127ms)
+ GET /api/listenkey?type=futures 200 in 182ms (compile: 11ms, render: 170ms)
+[TimeSync] Spot offset: 27022 ms
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/spot 200 in 522ms (compile: 17ms, render: 505ms)
+ GET /api/futures?type=positions 200 in 743ms (compile: 8ms, render: 735ms)
+ GET /api/futures?type=positions 200 in 133ms (compile: 4ms, render: 129ms)
+ GET /api/futures?type=dailyPnl 200 in 125ms (compile: 2ms, render: 123ms)
+ GET /trades 200 in 435ms (compile: 406ms, render: 29ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 2.6s (compile: 1714µs, render: 2.6s)
+ DELETE /api/listenkey?type=futures&listenKey=p86u8DEdMxdLMJTRmq8W5SfRbm2khRVRSdxTaejLQvPPwFXw6SZTjUaXGYsELI4o 200 in 189ms (compile: 8ms, render: 180ms)
+[TimeSync] Futures offset: 26862 ms
+ GET /api/trades?type=pnl&limit=1000 200 in 432ms (compile: 78ms, render: 354ms)
+ GET /api/trades?type=pnl&limit=1000 200 in 185ms (compile: 3ms, render: 182ms)
+ GET /compound 200 in 31ms (compile: 4ms, render: 27ms)
+ GET /api/compound 200 in 322ms (compile: 18ms, render: 304ms)
+ GET /api/compound 200 in 132ms (compile: 2ms, render: 130ms)
+[TimeSync] Futures offset: 26859 ms
+[TimeSync] Futures offset: 26865 ms
+[TimeSync] Futures offset: 27024 ms
+[TimeSync] Futures offset: 27025 ms
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures 200 in 1091ms (compile: 10ms, render: 1081ms)
+ GET /api/futures 200 in 127ms (compile: 3ms, render: 124ms)
+ GET /compound 200 in 103ms (compile: 4ms, render: 99ms)
+ GET /api/compound 200 in 333ms (compile: 8ms, render: 325ms)
+ GET /api/compound 200 in 132ms (compile: 3ms, render: 129ms)
+[TimeSync] Futures offset: 27016 ms
+[TimeSync] Futures offset: 27022 ms
+[TimeSync] Futures offset: 27021 ms
+[TimeSync] Futures offset: 27023 ms
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures 200 in 1245ms (compile: 3ms, render: 1242ms)
+ GET /api/futures?type=positions 200 in 1244ms (compile: 14ms, render: 1231ms)
+ GET /compound 200 in 99ms (compile: 6ms, render: 93ms)
+ GET /api/futures?type=positions 200 in 141ms (compile: 9ms, render: 133ms)
+ GET /api/futures 200 in 146ms (compile: 4ms, render: 142ms)
+ GET /api/compound 200 in 174ms (compile: 13ms, render: 161ms)
+ GET /api/compound 200 in 137ms (compile: 2ms, render: 135ms)
+ GET / 200 in 135ms (compile: 89ms, render: 46ms)
+ GET /api/settings 200 in 338ms (compile: 4ms, render: 334ms)
+ GET /api/listenkey?type=futures 200 in 375ms (compile: 14ms, render: 361ms)
+ GET /api/settings 200 in 137ms (compile: 5ms, render: 133ms)
+ GET /api/listenkey?type=futures 200 in 199ms (compile: 3ms, render: 196ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 901ms (compile: 4ms, render: 897ms)
+ GET /api/futures?type=positions 200 in 126ms (compile: 2ms, render: 124ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 177ms (compile: 6ms, render: 171ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 7ms (compile: 3ms, render: 4ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 179ms (compile: 4ms, render: 175ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 7ms (compile: 3ms, render: 4ms)
+ GET /api/futures?type=dailyPnl 200 in 549ms (compile: 1801µs, render: 547ms)
+ GET /api/futures?type=dailyPnl 200 in 125ms (compile: 4ms, render: 120ms)
+ GET /api/futures?type=dailyPnl 200 in 343ms (compile: 11ms, render: 331ms)
+ GET /api/futures?type=orders 200 in 953ms (compile: 5ms, render: 948ms)
+ GET /api/futures?type=account 200 in 982ms (compile: 21ms, render: 961ms)
+ GET /api/futures?type=dailyPnl 200 in 338ms (compile: 16ms, render: 323ms)
+ GET /api/futures?type=orders 200 in 840ms (compile: 10ms, render: 829ms)
+ GET /api/futures?type=account 200 in 945ms (compile: 4ms, render: 941ms)
+ GET /api/futures?type=dailyPnl 200 in 386ms (compile: 18ms, render: 368ms)
+ GET /api/futures?type=account 200 in 857ms (compile: 5ms, render: 852ms)
+ GET /api/futures?type=orders 200 in 1026ms (compile: 13ms, render: 1013ms)
+[TimeSync] Futures offset: 26863 ms
+ GET /api/futures?type=dailyPnl 200 in 409ms (compile: 15ms, render: 394ms)
+ GET /api/futures?type=orders 200 in 756ms (compile: 11ms, render: 745ms)
+ GET /api/futures?type=account 200 in 872ms (compile: 7ms, render: 865ms)
+ GET /api/futures?type=dailyPnl 200 in 424ms (compile: 19ms, render: 406ms)
+ GET /settings 200 in 43ms (compile: 5ms, render: 38ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 25.6s (compile: 10ms, render: 25.5s)
+ GET /api/settings 200 in 143ms (compile: 5ms, render: 138ms)
+ DELETE /api/listenkey?type=futures&listenKey=YPJCuNsGNugIa0JNU5md9uODpXNkY2zk8cHSudjOsAXe0yhCm7onUzYnFULjOxGP 200 in 345ms (compile: 11ms, render: 334ms)
+ GET /api/futures?type=account 200 in 907ms (compile: 4ms, render: 903ms)
+ GET /api/listenkey?type=futures 200 in 330ms (compile: 2ms, render: 328ms)
+ GET /api/settings 200 in 138ms (compile: 3ms, render: 135ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=orders 200 in 1094ms (compile: 13ms, render: 1081ms)
+ GET /api/listenkey?type=futures 200 in 189ms (compile: 3ms, render: 187ms)
+[TimeSync] Spot offset: 27130 ms
+ GET /api/spot 200 in 631ms (compile: 5ms, render: 626ms)
+ GET /api/futures?type=positions 200 in 793ms (compile: 8ms, render: 784ms)
+ GET /api/futures?type=positions 200 in 155ms (compile: 3ms, render: 151ms)
+ GET /api/futures?type=dailyPnl 200 in 153ms (compile: 3ms, render: 150ms)
+ GET /api/spot 200 in 210ms (compile: 5ms, render: 205ms)
+ GET /api/futures?type=dailyPnl 200 in 317ms (compile: 3ms, render: 314ms)
+ GET / 200 in 30ms (compile: 5ms, render: 25ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 4.6s (compile: 14ms, render: 4.6s)
+ DELETE /api/listenkey?type=futures&listenKey=wq7wvnHtVcf356BqtiXhJpdmJQxvVQTymjWkwZyuADDM9g2eAquiE868VdxvdB8B 200 in 179ms (compile: 6ms, render: 173ms)
+ GET /api/listenkey?type=futures 200 in 193ms (compile: 21ms, render: 172ms)
+ GET /api/settings 200 in 358ms (compile: 16ms, render: 342ms)
+ GET /api/listenkey?type=futures 200 in 186ms (compile: 3ms, render: 183ms)
+ GET /api/settings 200 in 132ms (compile: 3ms, render: 129ms)
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/futures?type=positions 200 in 979ms (compile: 13ms, render: 965ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 12ms (compile: 5ms, render: 6ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 18ms (compile: 12ms, render: 5ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 8ms (compile: 4ms, render: 4ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 17ms (compile: 9ms, render: 9ms)
+ GET /api/futures?type=positions 200 in 131ms (compile: 3ms, render: 128ms)
+ GET /api/futures?type=dailyPnl 200 in 572ms (compile: 2ms, render: 570ms)
+ GET /api/futures?type=dailyPnl 200 in 133ms (compile: 5ms, render: 128ms)
+ GET /api/futures?type=dailyPnl 200 in 335ms (compile: 11ms, render: 324ms)
+ GET /api/futures?type=orders 200 in 973ms (compile: 15ms, render: 957ms)
+ GET /api/futures?type=account 200 in 1023ms (compile: 4ms, render: 1018ms)
+ GET /api/futures?type=dailyPnl 200 in 465ms (compile: 16ms, render: 449ms)
+ GET /api/futures?type=account 200 in 593ms (compile: 4ms, render: 589ms)
+ GET /api/futures?type=orders 200 in 870ms (compile: 10ms, render: 860ms)
+ GET /api/futures?type=dailyPnl 200 in 393ms (compile: 11ms, render: 382ms)
+ GET /api/futures?type=orders 200 in 1043ms (compile: 15ms, render: 1028ms)
+ GET /api/futures?type=account 200 in 1076ms (compile: 4ms, render: 1073ms)
+ GET /api/futures?type=dailyPnl 200 in 147ms (compile: 12ms, render: 135ms)
+[TimeSync] Futures offset: 26859 ms
+ GET /api/futures?type=account 200 in 796ms (compile: 3ms, render: 794ms)
+ GET /api/futures?type=orders 200 in 828ms (compile: 3ms, render: 825ms)
+ GET /api/futures?type=dailyPnl 200 in 442ms (compile: 21ms, render: 422ms)
+ GET /api/futures?type=account 200 in 835ms (compile: 5ms, render: 830ms)
+ GET /api/futures?type=orders 200 in 995ms (compile: 13ms, render: 982ms)
+ GET /settings 200 in 28ms (compile: 4ms, render: 24ms)
+ GET /api/futures/stream?symbols=trxusdt 200 in 26.1s (compile: 23ms, render: 26.0s)
+ GET /api/settings 200 in 157ms (compile: 3ms, render: 153ms)
+ DELETE /api/listenkey?type=futures&listenKey=EREleuo458Nu9zGeryjnQKGWQCVapx8GRPvgZYVZrlQAGVoDvzh12S9xcZcDWwZg 200 in 194ms (compile: 5ms, render: 188ms)
+ GET /api/listenkey?type=futures 200 in 199ms (compile: 7ms, render: 192ms)
+ GET /api/settings 200 in 140ms (compile: 2ms, render: 138ms)
  GET /api/listenkey?type=futures 200 in 181ms (compile: 2ms, render: 179ms)
-[FuturesPositions] openAlgoOrders raw: []
- GET /api/futures?type=orders 200 in 8.9s (compile: 1576µs, render: 8.9s)
-Settings GET error: TypeError: fetch failed
-    at async GET (src\app\api\settings\route.js:31:18)
-  29 | export async function GET() {
-  30 |   try {
-> 31 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
-  33 |   } catch (error) {
-  34 |     console.error('Settings GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/settings 200 in 4.5s (compile: 8ms, render: 4.5s)
- GET /api/futures?type=positions 200 in 9.6s (compile: 3ms, render: 9.6s)
-Settings GET error: TypeError: fetch failed
-    at async GET (src\app\api\settings\route.js:31:18)
-  29 | export async function GET() {
-  30 |   try {
-> 31 |     const data = await redis.get(KV_KEY);
-     |                  ^
-  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
-  33 |   } catch (error) {
-  34 |     console.error('Settings GET error:', error); {
-  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
-      at ignore-listed frames {
-    errno: -3008,
-    code: 'ENOTFOUND',
-    syscall: 'getaddrinfo',
-    hostname: 'your-instance.upstash.io'
-  }
-}
- GET /api/settings 200 in 4.8s (compile: 4ms, render: 4.8s)
- GET /api/futures?type=dailyPnl 200 in 9.4s (compile: 13ms, render: 9.4s)
- GET /api/futures?type=account 200 in 9.5s (compile: 17ms, render: 9.4s)
- GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 173ms (compile: 1835µs, render: 171ms)
- GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 184ms (compile: 2ms, render: 182ms)
- GET /api/futures?type=orders 200 in 9.3s (compile: 2ms, render: 9.3s)
- GET /api/futures?type=orders 200 in 6.4s (compile: 3ms, render: 6.4s)
- GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 7ms (compile: 4ms, render: 3ms)
- GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 3ms (compile: 1264µs, render: 1991µs)
-[FuturesPositions] openAlgoOrders raw: []
- GET /api/futures?type=account 200 in 9.7s (compile: 2ms, render: 9.7s)
- GET /api/futures?type=account 200 in 5.5s (compile: 1550µs, render: 5.5s)
- GET /api/futures?type=dailyPnl 200 in 9.4s (compile: 1433µs, render: 9.4s)
- GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 3ms, render: 8.9s)
- GET /api/futures?type=positions 200 in 9.4s (compile: 2ms, render: 9.4s)
- GET /api/futures?type=orders 200 in 9.2s (compile: 1075µs, render: 9.2s)
-[TimeSync] Futures offset: 26879 ms
-[TimeSync] Futures offset: 26826 ms
- GET /api/futures?type=account 200 in 9.6s (compile: 1658µs, render: 9.6s)
- GET /api/futures?type=orders 200 in 9.6s (compile: 1390µs, render: 9.6s)
- GET /api/futures?type=orders 200 in 6.1s (compile: 1964µs, render: 6.1s)
- GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1607µs, render: 9.3s)
- GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1623µs, render: 9.3s)
- GET /api/futures?type=account 200 in 9.0s (compile: 1391µs, render: 9.0s)
- GET /api/futures?type=orders 200 in 8.9s (compile: 1783µs, render: 8.9s)
- GET /api/futures?type=dailyPnl 200 in 9.0s (compile: 1261µs, render: 9.0s)
+[TimeSync] Spot offset: 27073 ms
+[FuturesPositions] openAlgoOrders raw: [{"symbol":"TRXUSDT","orderType":"TAKE_PROFIT_MARKET","side":"SELL","triggerPrice":"0.33274","positionSide":"BOTH"},{"symbol":"TRXUSDT","orderType":"STOP_MARKET","side":"SELL","triggerPrice":"0.33059","positionSide":"BOTH"}]
+ GET /api/spot 200 in 570ms (compile: 12ms, render: 558ms)
+ GET /api/futures?type=positions 200 in 771ms (compile: 11ms, render: 759ms)
+ GET /api/spot 200 in 192ms (compile: 3ms, render: 190ms)
+ GET /api/futures?type=positions 200 in 139ms (compile: 5ms, render: 134ms)
+ GET /api/futures?type=dailyPnl 200 in 144ms (compile: 10ms, render: 135ms)
+ GET /api/futures?type=dailyPnl 200 in 138ms (compile: 4ms, render: 134ms)
+ GET /api/futures?type=account 200 in 1085ms (compile: 4ms, render: 1081ms)
+ GET /api/futures?type=orders 200 in 1248ms (compile: 9ms, render: 1238ms)
+ GET /api/futures?type=dailyPnl 200 in 1252ms (compile: 15ms, render: 1238ms)
+ GET /api/futures?type=dailyPnl 200 in 354ms (compile: 16ms, render: 338ms)
+ GET /api/futures?type=account 200 in 598ms (compile: 5ms, render: 593ms)
+ GET /api/futures?type=orders 200 in 794ms (compile: 11ms, render: 784ms)
+ GET /api/futures?type=dailyPnl 200 in 401ms (compile: 19ms, render: 383ms)
+ GET /api/futures?type=orders 200 in 1025ms (compile: 13ms, render: 1011ms)
+ GET /api/futures?type=account 200 in 1038ms (compile: 5ms, render: 1033ms)
+ GET /api/futures?type=dailyPnl 200 in 149ms (compile: 16ms, render: 132ms)
+ GET /api/futures?type=account 200 in 639ms (compile: 4ms, render: 635ms)
+ GET /api/futures?type=orders 200 in 876ms (compile: 10ms, render: 865ms)
+ GET /api/futures?type=dailyPnl 200 in 429ms (compile: 18ms, render: 411ms)
+[TimeSync] Futures offset: 26875 ms
+[TimeSync] Futures offset: 27045 ms
+ GET /api/futures?type=account 200 in 1071ms (compile: 3ms, render: 1068ms)
+ GET /api/futures?type=orders 200 in 1228ms (compile: 12ms, render: 1216ms)
