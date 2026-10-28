@@ -10,7 +10,7 @@ const KV_KEY = 'portfolio_settings';
 
 // Defaults — kept in sync with src/lib/settings.js DEFAULT_SETTINGS.
 const DEFAULTS = {
-  goalTarget: 100000,      // USD target for the compound goal
+  goalTarget: 25000,      // USD target for the compound goal
   compoundPercent: 2,      // % gain aimed per trade
   defaultLeverage: 15,     // leverage pre-filled on new orders
   inrRate: 100,            // USD → INR multiplier used for PnL display

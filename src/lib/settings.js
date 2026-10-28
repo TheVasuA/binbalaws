@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Default portfolio settings — must stay in sync with the API route DEFAULTS.
 export const DEFAULT_SETTINGS = {
-  goalTarget: 100000,      // USD target for the compound goal
+  goalTarget: 25000,      // USD target for the compound goal
   compoundPercent: 2,      // % gain aimed per trade
   defaultLeverage: 15,     // leverage pre-filled on new orders
   inrRate: 100,            // USD → INR multiplier used for PnL display
