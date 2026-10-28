@@ -1,11 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ForceCloseAllButton from '@/components/ForceCloseAllButton';
+import { usePortfolioSettings } from '@/lib/settings';
 
 export default function Navbar({ onRefresh, loading, progressData }) {
+  const { settings } = usePortfolioSettings();
+  const [goalTarget, setGoalTarget] = useState(25000);
+
+  useEffect(() => {
+    if (settings?.goalTarget !== undefined) setGoalTarget(Number(settings.goalTarget) || 25000);
+  }, [settings]);
+
       // Mobile trade summary (shown below navbar)
       const MobileTradeSummary = () => (
         progressData?.currentTradeNum ? (
@@ -76,7 +84,7 @@ export default function Navbar({ onRefresh, loading, progressData }) {
                   filter: "drop-shadow(0 1px 0 rgba(255,255,255,0.35)) drop-shadow(0 2px 1px rgba(0,0,0,0.6)) drop-shadow(0 4px 6px rgba(0,0,0,0.45))",
                 }}
               >
-                10M$
+                {goalTarget}$
               </span>
             </Link>
             

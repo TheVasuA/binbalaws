@@ -12,10 +12,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "10M$",
-  description: "Portfolio risk management dashboard for Binance",
+  title: 'BinBalaws',
+  description: 'Portfolio risk management dashboard for Binance',
   icons: {
-    icon: "/icon.png",
+    icon: '/icon.png',
   },
 };
 

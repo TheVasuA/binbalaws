@@ -7,9 +7,24 @@ import { useWallpaper } from '@/lib/theme';
 
 export default function DashboardLayout({ children }) {
   const [progressData, setProgressData] = useState(null);
+  const [goalTarget, setGoalTarget] = useState(25000);
 
   // Load + apply the saved wallpaper (image + opacity) behind the app.
   useWallpaper();
+
+  // Load goal target from settings (database)
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        if (data && data.goalTarget !== undefined) setGoalTarget(Number(data.goalTarget) || 25000);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
 
   // Fetch progress data ONCE on initial load
   useEffect(() => {
@@ -25,7 +40,7 @@ export default function DashboardLayout({ children }) {
         const currentBalance = (futuresData.account?.totalWalletBalance || 0) + (futuresData.account?.totalUnrealizedProfit || 0);
         const startingBalance = goalData?.startingBalance || futuresData.account?.totalWalletBalance || currentBalance || 1000;
         const completedTrades = goalData?.completedTrades?.length || 0;
-        const targetAmount = 100000;
+        const targetAmount = goalTarget;
 
         // Calculate total trades needed
         let balance = startingBalance > 0 ? startingBalance : 1000;
@@ -79,7 +94,7 @@ export default function DashboardLayout({ children }) {
       }
     };
     loadProgressData();
-  }, []);
+  }, [goalTarget]);
 
   return (
     <NotificationProvider>
