@@ -94,6 +94,16 @@ export default function SettingsPage() {
   const [form, setForm] = useState(settings);
   const [savedFlash, setSavedFlash] = useState(false);
   const [activeSection, setActiveSection] = useState('risk-actions');
+  const [spotTotal, setSpotTotal] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/spot')
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.success) setSpotTotal(j.data?.totalValue ?? 0);
+      })
+      .catch(() => {});
+  }, []);
 
   // Sync local form when settings load/change from the server.
   useEffect(() => {
@@ -427,6 +437,13 @@ export default function SettingsPage() {
 
         </div>{/* end content column */}
       </div>{/* end flex row */}
+
+      <div className="mt-6 bg-gray-800/50 rounded-xl border border-gray-700 p-4">
+        <h2 className="text-lg font-semibold text-white mb-2">Spot Balance</h2>
+        <p className="text-2xl font-bold text-green-400">
+          {spotTotal === null ? 'Loading…' : formatCurrency(spotTotal)}
+        </p>
+      </div>
 
       <footer className="text-center text-gray-500 text-xs md:text-sm py-4 mt-6">
         Settings are stored securely and apply across the dashboard.

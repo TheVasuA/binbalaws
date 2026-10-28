@@ -1,0 +1,716 @@
+
+> bindash@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.5:3000
+- Environments: .env
+
+✓ Starting...
+Creating turbopack project { dir: 'D:\\bala_ssh', testMode: true }
+✓ Ready in 1256ms
+ GET /api/futures?type=orders 200 in 1472ms (compile: 749ms, render: 722ms)
+ GET /api/futures?type=account 200 in 1472ms (compile: 769ms, render: 703ms)
+ GET /api/futures?type=dailyPnl 200 in 1493ms (compile: 695ms, render: 798ms)
+ GET / 200 in 1525ms (compile: 913ms, render: 612ms)
+ GET /api/listenkey?type=futures 200 in 774ms (compile: 145ms, render: 629ms)
+(node:25268) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[TimeSync] Futures offset: 26709 ms
+[TimeSync] Futures offset: 26800 ms
+[TimeSync] Futures offset: 26822 ms
+Settings GET error: TypeError: fetch failed
+    at async GET (src\app\api\settings\route.js:31:18)
+  29 | export async function GET() {
+  30 |   try {
+> 31 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
+  33 |   } catch (error) {
+  34 |     console.error('Settings GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/settings 200 in 5.0s (compile: 288ms, render: 4.8s)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 5.2s (compile: 409ms, render: 4.8s)
+[FuturesPositions] openAlgoOrders raw: []
+ GET /api/futures?type=positions 200 in 9.9s (compile: 20ms, render: 9.9s)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 202ms (compile: 33ms, render: 170ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 5ms (compile: 2ms, render: 3ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 210ms (compile: 26ms, render: 184ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 5ms (compile: 1720µs, render: 3ms)
+[FuturesPositions] openAlgoOrders raw: []
+ GET /api/futures?type=positions 200 in 9.2s (compile: 3ms, render: 9.2s)
+ GET /api/futures?type=dailyPnl 200 in 9.2s (compile: 2ms, render: 9.2s)
+[TimeSync] Spot offset: 26896 ms
+ GET /api/spot 200 in 836ms (compile: 287ms, render: 549ms)
+ GET /api/futures?type=account 200 in 9.4s (compile: 3ms, render: 9.4s)
+ GET /api/futures?type=orders 200 in 9.8s (compile: 7ms, render: 9.8s)
+ GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 2ms, render: 9.3s)
+ GET /api/futures?type=account 200 in 9.0s (compile: 4ms, render: 9.0s)
+ GET /api/futures?type=orders 200 in 8.9s (compile: 4ms, render: 8.9s)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 3ms, render: 8.9s)
+[TimeSync] Futures offset: 26863 ms
+[TimeSync] Futures offset: 26810 ms
+ GET /api/futures?type=account 200 in 9.2s (compile: 1955µs, render: 9.2s)
+ GET /api/futures?type=orders 200 in 9.1s (compile: 1522µs, render: 9.1s)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 1870µs, render: 8.9s)
+ GET /api/futures?type=orders 200 in 9.0s (compile: 1439µs, render: 9.0s)
+ GET /api/futures?type=account 200 in 9.2s (compile: 1655µs, render: 9.2s)
+ GET /new-order 200 in 43ms (compile: 23ms, render: 20ms)
+ GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1445µs, render: 9.3s)
+ GET /api/futures?type=orders 200 in 9.8s (compile: 3ms, render: 9.8s)
+ GET /api/futures?type=account 200 in 9.8s (compile: 6ms, render: 9.8s)
+ GET /api/futures?type=dailyPnl 200 in 9.8s (compile: 1978µs, render: 9.8s)
+ GET /api/futures?type=account 200 in 9.3s (compile: 3ms, render: 9.3s)
+ GET /api/futures?type=account 200 in 7.6s (compile: 5ms, render: 7.6s)
+ GET /new-order 200 in 18ms (compile: 2ms, render: 15ms)
+ DELETE /api/listenkey?type=futures&listenKey=lFuaxPxDPYJMvJ6onWj8FopTkuT2Wmp81hmihYDbJ3i3BURJfFG1krdmQ5ClJyVD 200 in 177ms (compile: 3ms, render: 173ms)
+ GET /api/futures?type=orders 200 in 10.2s (compile: 7ms, render: 10.2s)
+ GET /api/futures?type=orders 200 in 8.6s (compile: 1903µs, render: 8.6s)
+ GET /api/futures?type=dailyPnl 200 in 10.2s (compile: 10ms, render: 10.2s)
+ GET /api/futures?type=dailyPnl 200 in 5.7s (compile: 2ms, render: 5.7s)
+ GET /api/prices?symbols=BTCUSDT 200 in 654ms (compile: 34ms, render: 620ms)
+[TimeSync] Futures offset: 26710 ms
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.9s (compile: 10ms, render: 4.9s)
+ GET /api/futures?type=account 200 in 9.5s (compile: 2ms, render: 9.5s)
+ GET /api/futures?type=symbols 200 in 9.9s (compile: 1536µs, render: 9.9s)
+ GET /api/futures?type=orders 200 in 9.8s (compile: 2ms, render: 9.8s)
+ GET /api/prices?symbols=BTCUSDT 200 in 563ms (compile: 3ms, render: 560ms)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 3ms, render: 8.9s)
+ GET /api/futures?type=dailyPnl 200 in 4.7s (compile: 5ms, render: 4.7s)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 14.4s (compile: 3ms, render: 14.4s)
+ GET /api/futures?type=orders 200 in 8.9s (compile: 2ms, render: 8.9s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 17.6s (compile: 8ms, render: 17.6s)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.5s (compile: 4ms, render: 4.5s)
+ GET /api/prices?symbols=BTCUSDT 200 in 556ms (compile: 3ms, render: 553ms)
+ GET /api/futures?type=account 200 in 8.9s (compile: 3ms, render: 8.9s)
+ GET /api/futures?type=account 200 in 6.1s (compile: 8ms, render: 6.0s)
+ GET /api/futures?type=orders 200 in 8.9s (compile: 3ms, render: 8.9s)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 2ms, render: 8.8s)
+ GET /api/futures?type=dailyPnl 200 in 7.4s (compile: 3ms, render: 7.4s)
+ GET /api/futures?type=symbols 200 in 9.1s (compile: 4ms, render: 9.1s)
+ GET /api/futures?type=account 200 in 9.0s (compile: 3ms, render: 9.0s)
+ GET /api/futures?type=orders 200 in 9.1s (compile: 8ms, render: 9.1s)
+ GET /api/prices?symbols=BTCUSDT 200 in 553ms (compile: 3ms, render: 550ms)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.5s (compile: 3ms, render: 4.5s)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 8.9s (compile: 2ms, render: 8.9s)
+[TimeSync] Futures offset: 26699 ms
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.0s (compile: 8ms, render: 9.0s)
+ GET /api/futures?type=orders 200 in 9.3s (compile: 2ms, render: 9.3s)
+ GET /api/futures?type=account 200 in 9.2s (compile: 3ms, render: 9.2s)
+ GET /api/futures?type=account 200 in 6.9s (compile: 4ms, render: 6.9s)
+ GET /api/futures?type=account 200 in 6.0s (compile: 2ms, render: 6.0s)
+ GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 3ms, render: 9.3s)
+ GET /api/futures?type=account 200 in 9.2s (compile: 3ms, render: 9.2s)
+ GET /api/futures?type=account 200 in 6.3s (compile: 3ms, render: 6.3s)
+ GET /settings 200 in 99ms (compile: 54ms, render: 45ms)
+ GET /api/futures?type=symbols 200 in 9.2s (compile: 3ms, render: 9.2s)
+ GET /api/futures?type=symbols 200 in 6.1s (compile: 4ms, render: 6.1s)
+ GET /api/prices?symbols=BTCUSDT 200 in 604ms (compile: 5ms, render: 599ms)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 8.9s (compile: 8ms, render: 8.9s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.9s (compile: 11ms, render: 8.9s)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.8s (compile: 2ms, render: 4.8s)
+ GET /api/futures?type=account 200 in 9.9s (compile: 3ms, render: 9.9s)
+ GET /api/futures?type=account 200 in 9.2s (compile: 3ms, render: 9.2s)
+ GET /api/futures?type=account 200 in 7.3s (compile: 9ms, render: 7.3s)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 9.6s (compile: 2ms, render: 9.6s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.2s (compile: 3ms, render: 9.2s)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.5s (compile: 9ms, render: 4.5s)
+ GET /api/futures?type=symbols 200 in 9.5s (compile: 3ms, render: 9.5s)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 8.9s (compile: 14ms, render: 8.9s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.9s (compile: 20ms, render: 8.9s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 6.9s (compile: 2ms, render: 6.9s)
+ GET /api/futures?type=account 200 in 9.0s (compile: 4ms, render: 9.0s)
+ GET /api/prices?symbols=BTCUSDT 200 in 847ms (compile: 6ms, render: 841ms)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.5s (compile: 2ms, render: 4.5s)
+ GET /api/futures?type=symbols 200 in 9.3s (compile: 15ms, render: 9.3s)
+ GET /api/futures?type=account 200 in 9.2s (compile: 2ms, render: 9.2s)
+ GET /api/futures?type=account 200 in 5.0s (compile: 1587µs, render: 5.0s)
+ GET /api/prices?symbols=BTCUSDT 200 in 408ms (compile: 1537µs, render: 406ms)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 8.8s (compile: 10ms, render: 8.8s)
+[TimeSync] Futures offset: 26711 ms
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.5s (compile: 1599µs, render: 4.4s)
+ GET /api/futures?type=symbols 200 in 9.1s (compile: 1656µs, render: 9.1s)
+ GET /api/futures?type=account 200 in 9.1s (compile: 1969µs, render: 9.1s)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 8.7s (compile: 5ms, render: 8.7s)
+ GET /api/prices?symbols=BTCUSDT 200 in 682ms (compile: 1837µs, render: 681ms)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.7s (compile: 2ms, render: 8.7s)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.4s (compile: 1709µs, render: 4.4s)
+ GET /api/futures?type=symbols 200 in 9.1s (compile: 2ms, render: 9.0s)
+ GET /api/futures?type=account 200 in 9.0s (compile: 1841µs, render: 9.0s)
+ GET /api/prices?symbols=BTCUSDT 200 in 456ms (compile: 2ms, render: 454ms)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.4s (compile: 1926µs, render: 4.4s)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 8.7s (compile: 1908µs, render: 8.7s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.7s (compile: 1956µs, render: 8.7s)
+ GET /api/futures?type=symbols 200 in 8.9s (compile: 3ms, render: 8.9s)
+ GET /api/futures?type=account 200 in 9.2s (compile: 6ms, render: 9.2s)
+ GET /api/prices?symbols=BTCUSDT 200 in 455ms (compile: 1586µs, render: 454ms)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 8.8s (compile: 2ms, render: 8.8s)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.5s (compile: 1678µs, render: 4.5s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.1s (compile: 2ms, render: 9.1s)
+ GET /api/futures?type=symbols 200 in 9.5s (compile: 1838µs, render: 9.5s)
+ GET /api/futures?type=account 200 in 9.3s (compile: 1900µs, render: 9.3s)
+ GET /api/prices?symbols=BTCUSDT 200 in 542ms (compile: 1778µs, render: 540ms)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 9.2s (compile: 1863µs, render: 9.2s)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.5s (compile: 2ms, render: 4.5s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.0s (compile: 1821µs, render: 9.0s)
+ GET /api/futures?type=symbols 200 in 9.2s (compile: 5ms, render: 9.2s)
+ GET /api/futures?type=account 200 in 9.4s (compile: 1520µs, render: 9.4s)
+ GET /api/prices?symbols=BTCUSDT 200 in 614ms (compile: 2ms, render: 612ms)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.6s (compile: 1680µs, render: 4.6s)
+[TimeSync] Futures offset: 26800 ms
+ GET /api/futures?type=shortlist3d&limit=200 200 in 9.1s (compile: 2ms, render: 9.1s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.0s (compile: 1702µs, render: 9.0s)
+ GET /api/futures?type=symbols 200 in 9.6s (compile: 1555µs, render: 9.6s)
+ GET /api/futures?type=account 200 in 9.5s (compile: 6ms, render: 9.5s)
+ GET /api/prices?symbols=BTCUSDT 200 in 289ms (compile: 1659µs, render: 287ms)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 8.7s (compile: 6ms, render: 8.7s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.7s (compile: 1933µs, render: 8.7s)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.4s (compile: 3ms, render: 4.4s)
+ GET /api/futures?type=symbols 200 in 9.2s (compile: 5ms, render: 9.2s)
+ GET /api/futures?type=account 200 in 8.9s (compile: 3ms, render: 8.9s)
+ GET /api/prices?symbols=BTCUSDT 200 in 555ms (compile: 6ms, render: 549ms)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 9.1s (compile: 2ms, render: 9.1s)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.7s (compile: 2ms, render: 4.7s)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 9.1s (compile: 3ms, render: 9.1s)
+ GET /api/futures?type=symbols 200 in 9.5s (compile: 1948µs, render: 9.5s)
+ GET /api/futures?type=account 200 in 9.4s (compile: 1611µs, render: 9.4s)
+ GET /api/prices?symbols=BTCUSDT 200 in 664ms (compile: 1860µs, render: 662ms)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 9.5s (compile: 5ms, render: 9.5s)
+ GET /api/futures?type=symbols 200 in 5.5s (compile: 1342µs, render: 5.5s)
+ GET /new-order 200 in 165ms (compile: 4ms, render: 161ms)
+ GET /api/futures?type=account 200 in 2.0s (compile: 1776µs, render: 2.0s)
+ GET /api/compound 200 in 1500ms (compile: 2ms, render: 1498ms)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 5.6s (compile: 1542µs, render: 5.6s)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 788ms (compile: 3ms, render: 786ms)
+ GET /api/prices?symbols=BTCUSDT 200 in 298ms (compile: 15ms, render: 282ms)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.9s (compile: 3ms, render: 4.9s)
+ GET / 200 in 16ms (compile: 2ms, render: 14ms)
+[FuturesPositions] openAlgoOrders raw: []
+ GET /api/futures?type=account 200 in 7.4s (compile: 9ms, render: 7.4s)
+ GET / 200 in 14ms (compile: 3ms, render: 11ms)
+ GET /api/futures?type=shortlist3d&limit=200 200 in 8.6s (compile: 10ms, render: 8.5s)
+ GET /api/futures?type=positions 200 in 8.6s (compile: 2ms, render: 8.6s)
+ GET /api/futures?type=symbols 200 in 8.9s (compile: 5ms, render: 8.9s)
+ GET /api/futures?type=account 200 in 1485ms (compile: 1515µs, render: 1484ms)
+ GET /api/futures?type=rsi1hscan&scanLimit=280 200 in 8.9s (compile: 4ms, render: 8.9s)
+ GET /api/compound 200 in 4.0s (compile: 2ms, render: 4.0s)
+ GET / 200 in 58ms (compile: 3ms, render: 55ms)
+ GET /api/listenkey?type=futures 200 in 194ms (compile: 8ms, render: 187ms)
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+[TimeSync] Futures offset: 26711 ms
+Redis GET error: TypeError: fetch failed
+    at async GET (src\app\api\compound\route.js:13:18)
+  11 | export async function GET() {
+  12 |   try {
+> 13 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  14 |     return NextResponse.json(data || { startingBalance: null, completedTrades: [] });
+  15 |   } catch (error) {
+  16 |     console.error('Redis GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/compound 200 in 4.5s (compile: 13ms, render: 4.4s)
+Settings GET error: TypeError: fetch failed
+    at async GET (src\app\api\settings\route.js:31:18)
+  29 | export async function GET() {
+  30 |   try {
+> 31 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
+  33 |   } catch (error) {
+  34 |     console.error('Settings GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/settings 200 in 4.5s (compile: 18ms, render: 4.5s)
+[FuturesPositions] openAlgoOrders raw: []
+ GET /api/futures?type=positions 200 in 9.3s (compile: 3ms, render: 9.3s)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 9ms (compile: 3ms, render: 6ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 15ms (compile: 10ms, render: 5ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 6ms (compile: 3ms, render: 3ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 11ms (compile: 7ms, render: 4ms)
+[FuturesPositions] openAlgoOrders raw: []
+ GET /api/futures?type=dailyPnl 200 in 9.5s (compile: 3ms, render: 9.5s)
+ GET /api/futures?type=positions 200 in 9.5s (compile: 3ms, render: 9.5s)
+ GET /api/futures?type=orders 200 in 9.0s (compile: 4ms, render: 9.0s)
+ GET /api/futures?type=account 200 in 9.1s (compile: 1829µs, render: 9.1s)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 1526µs, render: 8.9s)
+ GET /settings 200 in 18ms (compile: 4ms, render: 14ms)
+ GET /api/futures?type=orders 200 in 8.9s (compile: 1710µs, render: 8.9s)
+ GET /api/futures?type=account 200 in 9.1s (compile: 1609µs, render: 9.1s)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 1393µs, render: 8.9s)
+[TimeSync] Futures offset: 26697 ms
+ GET /api/futures?type=orders 200 in 9.0s (compile: 1760µs, render: 9.0s)
+ GET /api/futures?type=account 200 in 9.0s (compile: 1588µs, render: 9.0s)
+ GET /api/futures?type=dailyPnl 200 in 8.8s (compile: 1634µs, render: 8.8s)
+ DELETE /api/listenkey?type=futures&listenKey=GUPxxPGrhupRsvqCv1s8CIwFXpjVo9ggCo4O6LpgIkB4ZaZ1KJB8uieg1VuJ4SCk 200 in 329ms (compile: 3ms, render: 326ms)
+ GET /api/listenkey?type=futures 200 in 178ms (compile: 1793µs, render: 176ms)
+[TimeSync] Spot offset: 26876 ms
+ GET /api/spot 200 in 520ms (compile: 1861µs, render: 518ms)
+ GET /api/listenkey?type=futures 200 in 178ms (compile: 2ms, render: 175ms)
+ GET /api/spot 200 in 189ms (compile: 1731µs, render: 187ms)
+Settings GET error: TypeError: fetch failed
+    at async GET (src\app\api\settings\route.js:31:18)
+  29 | export async function GET() {
+  30 |   try {
+> 31 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
+  33 |   } catch (error) {
+  34 |     console.error('Settings GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/settings 200 in 4.5s (compile: 6ms, render: 4.5s)
+ GET /api/futures?type=orders 200 in 9.0s (compile: 2ms, render: 9.0s)
+ GET /api/futures?type=account 200 in 9.1s (compile: 3ms, render: 9.1s)
+[FuturesPositions] openAlgoOrders raw: []
+ GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1612µs, render: 9.3s)
+Settings GET error: TypeError: fetch failed
+    at async GET (src\app\api\settings\route.js:31:18)
+  29 | export async function GET() {
+  30 |   try {
+> 31 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
+  33 |   } catch (error) {
+  34 |     console.error('Settings GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/settings 200 in 4.5s (compile: 4ms, render: 4.5s)
+ GET /api/futures?type=positions 200 in 9.4s (compile: 10ms, render: 9.4s)
+ GET /api/futures?type=orders 200 in 9.1s (compile: 10ms, render: 9.1s)
+ GET /api/futures?type=account 200 in 9.1s (compile: 2ms, render: 9.1s)
+[FuturesPositions] openAlgoOrders raw: []
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 1555µs, render: 8.9s)
+ GET /api/futures?type=dailyPnl 200 in 8.5s (compile: 2ms, render: 8.5s)
+ GET /api/futures?type=positions 200 in 9.1s (compile: 36ms, render: 9.0s)
+[TimeSync] Futures offset: 26706 ms
+ GET /api/futures?type=account 200 in 9.2s (compile: 1980µs, render: 9.2s)
+ GET /api/futures?type=account 200 in 5.3s (compile: 1551µs, render: 5.3s)
+ GET /api/futures?type=orders 200 in 9.1s (compile: 1971µs, render: 9.1s)
+ GET /api/futures?type=orders 200 in 8.9s (compile: 1556µs, render: 8.9s)
+ GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1337µs, render: 9.3s)
+ GET /api/futures?type=account 200 in 8.9s (compile: 1472µs, render: 8.9s)
+ GET /api/futures?type=orders 200 in 9.1s (compile: 1523µs, render: 9.1s)
+ GET /api/futures?type=dailyPnl 200 in 8.8s (compile: 1700µs, render: 8.8s)
+ GET /api/futures?type=account 200 in 8.9s (compile: 2ms, render: 8.9s)
+ GET /api/futures?type=orders 200 in 8.9s (compile: 1514µs, render: 8.9s)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 3ms, render: 8.9s)
+ GET /api/futures?type=dailyPnl 200 in 7.7s (compile: 1787µs, render: 7.7s)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 4ms, render: 8.9s)
+ GET /api/futures?type=dailyPnl 200 in 4.9s (compile: 3ms, render: 4.9s)
+ GET /api/futures?type=account 200 in 8.9s (compile: 7ms, render: 8.9s)
+ GET /api/futures?type=orders 200 in 9.2s (compile: 4ms, render: 9.2s)
+[TimeSync] Futures offset: 26892 ms
+ GET /api/futures?type=dailyPnl 200 in 9.4s (compile: 3ms, render: 9.4s)
+ GET /api/futures?type=account 200 in 8.9s (compile: 5ms, render: 8.9s)
+ GET /api/futures?type=orders 200 in 8.9s (compile: 4ms, render: 8.9s)
+ GET /api/futures?type=orders 200 in 8.3s (compile: 4ms, render: 8.3s)
+ GET / 200 in 32ms (compile: 5ms, render: 27ms)
+ DELETE /api/listenkey?type=futures&listenKey=b9NDP29MJvCvaHUp0rhWPFldCt0sRveB2rwYh52WTeTrKQQux5bEVcQYUpf5LH45 200 in 177ms (compile: 4ms, render: 173ms)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 6ms, render: 8.8s)
+ GET /api/futures?type=dailyPnl 200 in 5.6s (compile: 1497µs, render: 5.6s)
+ GET /api/futures?type=account 200 in 8.9s (compile: 2ms, render: 8.9s)
+ GET /api/futures?type=account 200 in 4.9s (compile: 1370µs, render: 4.9s)
+ GET /api/listenkey?type=futures 200 in 165ms (compile: 3ms, render: 162ms)
+ GET /api/listenkey?type=futures 200 in 181ms (compile: 2ms, render: 179ms)
+[FuturesPositions] openAlgoOrders raw: []
+ GET /api/futures?type=orders 200 in 8.9s (compile: 1576µs, render: 8.9s)
+Settings GET error: TypeError: fetch failed
+    at async GET (src\app\api\settings\route.js:31:18)
+  29 | export async function GET() {
+  30 |   try {
+> 31 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
+  33 |   } catch (error) {
+  34 |     console.error('Settings GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/settings 200 in 4.5s (compile: 8ms, render: 4.5s)
+ GET /api/futures?type=positions 200 in 9.6s (compile: 3ms, render: 9.6s)
+Settings GET error: TypeError: fetch failed
+    at async GET (src\app\api\settings\route.js:31:18)
+  29 | export async function GET() {
+  30 |   try {
+> 31 |     const data = await redis.get(KV_KEY);
+     |                  ^
+  32 |     return NextResponse.json({ ...DEFAULTS, ...(data || {}) });
+  33 |   } catch (error) {
+  34 |     console.error('Settings GET error:', error); {
+  [cause]: Error: getaddrinfo ENOTFOUND your-instance.upstash.io
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'your-instance.upstash.io'
+  }
+}
+ GET /api/settings 200 in 4.8s (compile: 4ms, render: 4.8s)
+ GET /api/futures?type=dailyPnl 200 in 9.4s (compile: 13ms, render: 9.4s)
+ GET /api/futures?type=account 200 in 9.5s (compile: 17ms, render: 9.4s)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 173ms (compile: 1835µs, render: 171ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 184ms (compile: 2ms, render: 182ms)
+ GET /api/futures?type=orders 200 in 9.3s (compile: 2ms, render: 9.3s)
+ GET /api/futures?type=orders 200 in 6.4s (compile: 3ms, render: 6.4s)
+ GET /api/rsi?symbol=BTCUSDT&interval=1h 200 in 7ms (compile: 4ms, render: 3ms)
+ GET /api/rsi?symbol=BTCUSDT&interval=4h 200 in 3ms (compile: 1264µs, render: 1991µs)
+[FuturesPositions] openAlgoOrders raw: []
+ GET /api/futures?type=account 200 in 9.7s (compile: 2ms, render: 9.7s)
+ GET /api/futures?type=account 200 in 5.5s (compile: 1550µs, render: 5.5s)
+ GET /api/futures?type=dailyPnl 200 in 9.4s (compile: 1433µs, render: 9.4s)
+ GET /api/futures?type=dailyPnl 200 in 8.9s (compile: 3ms, render: 8.9s)
+ GET /api/futures?type=positions 200 in 9.4s (compile: 2ms, render: 9.4s)
+ GET /api/futures?type=orders 200 in 9.2s (compile: 1075µs, render: 9.2s)
+[TimeSync] Futures offset: 26879 ms
+[TimeSync] Futures offset: 26826 ms
+ GET /api/futures?type=account 200 in 9.6s (compile: 1658µs, render: 9.6s)
+ GET /api/futures?type=orders 200 in 9.6s (compile: 1390µs, render: 9.6s)
+ GET /api/futures?type=orders 200 in 6.1s (compile: 1964µs, render: 6.1s)
+ GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1607µs, render: 9.3s)
+ GET /api/futures?type=dailyPnl 200 in 9.3s (compile: 1623µs, render: 9.3s)
+ GET /api/futures?type=account 200 in 9.0s (compile: 1391µs, render: 9.0s)
+ GET /api/futures?type=orders 200 in 8.9s (compile: 1783µs, render: 8.9s)
+ GET /api/futures?type=dailyPnl 200 in 9.0s (compile: 1261µs, render: 9.0s)
