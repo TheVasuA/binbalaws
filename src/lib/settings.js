@@ -11,6 +11,9 @@ export const DEFAULT_SETTINGS = {
   maxLeverageWarn: 20,       // flag positions with leverage >= this
   riskPerTradePercent: 2,    // % of wallet risked per trade
   maxOpenPositions: 3,       // max concurrent positions before a danger badge shows
+  orderAlertMinutes: 15,     // new-order alarm stays active this many minutes
+  orderAlertBeep: 1,         // 1 = beep when a new order is placed
+  maxOpenOrders: 5,          // max concurrent orders before a warning is shown
   dailyLossLimitPercent: 10, // circuit breaker: block new orders at this daily loss %
   alarmLossPercent: 8,       // beep + alert when daily loss reaches this % of margin
   autoCloseOnBreaker: 0,     // 1 = auto-close all (except >=20x) when limit hit

@@ -107,6 +107,31 @@ const FIELDS = [
     min: 0,
     help: 'Today profit % added to base balance next day.',
   },
+  {
+    key: 'orderAlertMinutes',
+    label: 'Order Alert Duration',
+    unit: 'minutes',
+    step: '1',
+    min: 1,
+    help: 'New-order alarm stays active this long (dismiss manually or auto-clears).',
+  },
+  {
+    key: 'orderAlertBeep',
+    label: 'Order Alert Beep',
+    unit: '0/1',
+    step: '1',
+    min: 0,
+    max: 1,
+    help: 'Beep when a new order is placed.',
+  },
+  {
+    key: 'maxOpenOrders',
+    label: 'Max Open Orders',
+    unit: 'orders',
+    step: '1',
+    min: 1,
+    help: 'Warning when open orders reach this count.',
+  },
 ];
 
 export default function SettingsPage() {

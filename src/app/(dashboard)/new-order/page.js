@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFetch, formatCurrency, formatNumber } from '@/lib/utils';
 import { TRADIFI_NAMES } from '@/lib/tradfi';
+import { useNotify } from '@/lib/notify';
+import { usePortfolioSettings } from '@/lib/settings';
 
 function TradingViewChart({ symbol, interval }) {
   const containerRef = useRef(null);
@@ -194,6 +196,13 @@ export default function NewOrderPage() {
   const [compoundError, setCompoundError] = useState('');
   const [goalTarget, setGoalTarget] = useState(25000);
 
+  const { settings } = usePortfolioSettings();
+  const { notify } = useNotify();
+  const orderAlertTimer = useRef(null);
+
+  const orderAlertMinutes = Number(settings?.orderAlertMinutes) || 15;
+  const orderAlertBeep = Number(settings?.orderAlertBeep) === 1;
+  const maxOpenOrders = Number(settings?.maxOpenOrders) || 5;
   const {
     data: symbolsData,
     loading: symbolsLoading,
@@ -221,6 +230,13 @@ export default function NewOrderPage() {
     error: accountError,
     refetch: refetchAccount,
   } = useFetch('/api/futures?type=account', { refreshInterval: BALANCE_REFRESH_MS });
+
+  const {
+    data: positionsData,
+    refetch: refetchPositions,
+  } = useFetch('/api/futures?type=positions', { refreshInterval: 10 * 60 * 1000 });
+
+  const openPositionCount = positionsData?.positions?.length || 0;
 
   const {
     data: priceData,
@@ -581,6 +597,12 @@ export default function NewOrderPage() {
     setSubmitError('');
     setSubmitResult(null);
 
+    // ── Maximum Orders guard ──
+    if (openPositionCount >= maxOpenOrders) {
+      setSubmitError(`Max open orders reached (${openPositionCount} ≥ ${maxOpenOrders}). Close some positions before placing new orders.`);
+      return;
+    }
+
     if (!symbol) {
       setSubmitError('Please select a futures symbol.');
       return;
@@ -740,6 +762,18 @@ export default function NewOrderPage() {
 
       setSubmitResult(result.data);
       refetchAccount();
+
+      // ── Order Alert: sticky notification for N minutes (or until dismissed) ──
+      if (orderAlertTimer.current) clearTimeout(orderAlertTimer.current);
+      const alertMs = orderAlertMinutes * 60 * 1000;
+      notify({
+        level: 'info',
+        beep: orderAlertBeep,
+        title: 'New Order Placed',
+        message: `${side} ${symbol} × ${normalizedQuantity} @ ${currentPrice.toFixed(4)} — alarm active for ${orderAlertMinutes} min`,
+        duration: alertMs,
+        sticky: false,
+      });
     } catch (error) {
       setSubmitError(error.message);
     } finally {
@@ -808,6 +842,11 @@ export default function NewOrderPage() {
                   <button type="button" className="px-2 py-1 text-xs bg-yellow-500/20 text-yellow-300 border-r border-gray-700">Market</button>
                   <button type="button" disabled className="px-2 py-1 text-xs text-gray-500">Limit</button>
                 </div>
+                {openPositionCount > 0 && (
+                  <span className={`text-xs px-2 py-1 rounded-full border ${openPositionCount >= maxOpenOrders ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-blue-500/20 text-blue-300 border-blue-500/40'}`}>
+                    {openPositionCount}/{maxOpenOrders} orders
+                  </span>
+                )}
               </div>
 
               <div>
