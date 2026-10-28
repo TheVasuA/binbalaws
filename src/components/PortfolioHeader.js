@@ -6,8 +6,8 @@ import { formatCurrency } from '@/lib/utils';
 
 export default function PortfolioHeader({ totalValue, futuresAccount, lastUpdated, onRefresh, loading }) {
   const [goalData, setGoalData] = useState(null);
+  const [goalTarget, setGoalTarget] = useState(25000);
   const [menuOpen, setMenuOpen] = useState(false);
-  const targetAmount = 100000; // $100,000 target
 
   // Load goal data from database
   useEffect(() => {
@@ -23,13 +23,27 @@ export default function PortfolioHeader({ totalValue, futuresAccount, lastUpdate
     loadGoalData();
   }, []);
 
+  // Load goal target from settings (database)
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        if (data && data.goalTarget !== undefined) setGoalTarget(Number(data.goalTarget) || 25000);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
+
   const currentBalance = futuresAccount?.totalWalletBalance || 0;
   const startingBalance = goalData?.startingBalance || currentBalance;
   const completedTrades = goalData?.completedTrades?.length || 0;
   
   // Calculate progress to goal
   const progressPercent = startingBalance > 0 
-    ? Math.min(((currentBalance - startingBalance) / (targetAmount - startingBalance)) * 100, 100)
+    ? Math.min(((currentBalance - startingBalance) / (goalTarget - startingBalance)) * 100, 100)
     : 0;
   
   // Calculate total trades needed
@@ -37,7 +51,7 @@ export default function PortfolioHeader({ totalValue, futuresAccount, lastUpdate
     if (startingBalance <= 0) return 0;
     let balance = startingBalance;
     let trades = 0;
-    while (balance < targetAmount && trades < 500) {
+    while (balance < goalTarget && trades < 500) {
       balance *= 1.02; // 2% compound
       trades++;
     }
@@ -73,7 +87,7 @@ export default function PortfolioHeader({ totalValue, futuresAccount, lastUpdate
                     filter: "drop-shadow(0 1px 0 rgba(255,255,255,0.35)) drop-shadow(0 3px 2px rgba(0,0,0,0.6)) drop-shadow(0 6px 10px rgba(0,0,0,0.45))",
                   }}
                 >
-                  10M$
+                  {goalTarget}$
                 </h1>
                 <p className="text-gray-500 text-xs md:text-sm flex items-center gap-1">
                   <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -195,7 +209,7 @@ export default function PortfolioHeader({ totalValue, futuresAccount, lastUpdate
             <div className="text-left md:text-right">
               <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Goal Target</p>
               <p className="text-2xl md:text-3xl font-bold text-transparent bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text">
-                {formatCurrency(targetAmount)}
+                {formatCurrency(goalTarget)}
               </p>
               <p className="text-gray-500 text-xs mt-1">
                 {completedTrades} of {totalTrades} trades
