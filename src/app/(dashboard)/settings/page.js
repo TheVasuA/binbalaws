@@ -8,6 +8,8 @@ import { WALLPAPERS } from '@/lib/wallpapers';
 import { formatCurrency } from '@/lib/utils';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ForceCloseAllButton from '@/components/ForceCloseAllButton';
+import SettingsLock from '@/components/SettingsLock';
+import ChangePasswordForm from '@/components/ChangePasswordForm';
 
 // Field definitions drive the form so it stays in sync with the settings model.
 const FIELDS = [
@@ -145,6 +147,13 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState('risk-actions');
   const [spotTotal, setSpotTotal] = useState(null);
 
+  // Settings are password-locked. "Unlocked" persists for the browser session so
+  // navigating away and back keeps you logged in until the tab is closed or you
+  // press Lock. The actual password check happens server-side (/api/settings-auth).
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return sessionStorage.getItem('settingsUnlocked') === '1'; } catch { return false; }
+  });
+
   useEffect(() => {
     fetch('/api/spot')
       .then((r) => r.json())
@@ -153,6 +162,9 @@ export default function SettingsPage() {
       })
       .catch(() => {});
   }, []);
+
+  // Ensure the default lock password is seeded server-side (no-op if already set).
+  useEffect(() => { fetch('/api/settings-auth').catch(() => {}); }, []);
 
   // Sync local form when settings load/change from the server.
   useEffect(() => {
@@ -179,6 +191,38 @@ export default function SettingsPage() {
     }
   };
 
+  const handleLock = () => {
+    setUnlocked(false);
+    try {
+      const token = sessionStorage.getItem('settingsToken');
+      sessionStorage.removeItem('settingsUnlocked');
+      sessionStorage.removeItem('settingsToken');
+      // Revoke the server-side session immediately so the token can't be reused.
+      if (token) {
+        fetch('/api/settings-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'logout', token }),
+        }).catch(() => {});
+      }
+    } catch {}
+    setActiveSection('risk-actions');
+  };
+
+  if (!unlocked) {
+    return (
+      <SettingsLock
+        onUnlock={(token) => {
+          setUnlocked(true);
+          try {
+            sessionStorage.setItem('settingsUnlocked', '1');
+            if (token) sessionStorage.setItem('settingsToken', token);
+          } catch {}
+        }}
+      />
+    );
+  }
+
   if (loading) {
     return <LoadingSpinner text="Loading settings..." />;
   }
@@ -198,16 +242,26 @@ export default function SettingsPage() {
     { id: 'wallpaper', label: '🖼 Wallpaper' },
     { id: 'preferences', label: '🛠 Preferences' },
     { id: 'base-balance', label: '🛡 Base Balance' },
+    { id: 'security', label: '🔐 Security' },
   ];
 
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">⚙️ Settings</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Portfolio goals, risk defaults and display preferences.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-white">⚙️ Settings</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Portfolio goals, risk defaults and display preferences.
+          </p>
+        </div>
+        <button
+          onClick={handleLock}
+          title="Lock settings"
+          className="shrink-0 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium"
+        >
+          🔒 Lock
+        </button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
@@ -530,6 +584,27 @@ export default function SettingsPage() {
             Reset to Defaults
           </button>
           {savedFlash && <span className="text-green-400 text-sm">✓ Saved</span>}
+        </div>
+      </section>
+      )}
+
+      {activeSection === 'security' && (
+      <section className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6">
+        <h2 className="text-lg font-semibold text-white mb-1">Security</h2>
+        <p className="text-gray-500 text-xs mb-4">
+          Change the password used to unlock Settings. You must enter the current
+          password to set a new one.
+        </p>
+        <div className="max-w-sm">
+          <ChangePasswordForm />
+        </div>
+        <div className="mt-6 pt-4 border-t border-gray-700">
+          <button
+            onClick={handleLock}
+            className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium"
+          >
+            🔒 Lock settings now
+          </button>
         </div>
       </section>
       )}

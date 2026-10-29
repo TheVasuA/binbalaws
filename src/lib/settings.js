@@ -24,6 +24,13 @@ export const DEFAULT_SETTINGS = {
   baseBalanceProfitPercent: 10, // today profit % added to base balance next day
 };
 
+// The settings API rejects writes without a valid unlock session token. The
+// token is issued by /api/settings-auth on verify and stashed in sessionStorage
+// (per browser session) by the Settings page on unlock.
+function getSettingsToken() {
+  try { return sessionStorage.getItem('settingsToken') || ''; } catch { return ''; }
+}
+
 /**
  * Load + persist portfolio settings (Redis-backed via /api/settings).
  * Returns the merged settings, a saving flag, and save/reset helpers.
@@ -55,9 +62,10 @@ export function usePortfolioSettings() {
     setSaving(true);
     setError(null);
     try {
+      const token = getSettingsToken();
       const res = await fetch('/api/settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'x-settings-token': token } : {}) },
         body: JSON.stringify(next),
       });
       const json = await res.json();
@@ -75,7 +83,11 @@ export function usePortfolioSettings() {
   const reset = useCallback(async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/settings', { method: 'DELETE' });
+      const token = getSettingsToken();
+      const res = await fetch('/api/settings', {
+        method: 'DELETE',
+        headers: token ? { 'x-settings-token': token } : {},
+      });
       const json = await res.json();
       setSettings({ ...DEFAULT_SETTINGS, ...(json.data || {}) });
       return true;

@@ -1,5 +1,6 @@
 import { Redis } from '@upstash/redis';
 import { NextResponse } from 'next/server';
+import { verifySession } from '@/lib/settings-auth';
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
@@ -47,6 +48,12 @@ export async function POST(request) {
   try {
     const body = await request.json();
 
+    // Writes require an unlock session token (issued by /api/settings-auth on
+    // verify). This makes the Settings lock protect the API too, not just the UI.
+    if (!(await verifySession(request.headers.get('x-settings-token')))) {
+      return NextResponse.json({ success: false, error: 'Settings are locked — unlock first' }, { status: 401 });
+    }
+
     // Whitelist + coerce to numbers so we never persist junk.
     const clean = {};
     for (const key of Object.keys(DEFAULTS)) {
@@ -67,8 +74,11 @@ export async function POST(request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request) {
   try {
+    if (!(await verifySession(request.headers.get('x-settings-token')))) {
+      return NextResponse.json({ success: false, error: 'Settings are locked — unlock first' }, { status: 401 });
+    }
     await redis.del(KV_KEY);
     return NextResponse.json({ success: true, data: DEFAULTS });
   } catch (error) {
