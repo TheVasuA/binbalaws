@@ -450,6 +450,25 @@ export default function SettingsPage() {
             );
           })}
         </div>
+
+        {/* Force-exit toggle: close EVERY running order (incl. 20x+) on contact */}
+        <label className="flex items-start gap-3 cursor-pointer mt-5">
+          <input
+            type="checkbox"
+            checked={Number(form.baseBalanceAutoClose) === 1}
+            onChange={(e) => handleChange('baseBalanceAutoClose', e.target.checked ? 1 : 0)}
+            className="mt-0.5 h-4 w-4 accent-red-500"
+          />
+          <span>
+            <span className="text-sm text-gray-200 font-medium">
+              Force-exit all positions when base balance is reached
+            </span>
+            <span className="block text-gray-500 text-xs mt-0.5">
+              When overall balance (wallet + live PnL) drops to {form.baseBalance ? `$${form.baseBalance}` : 'the base balance'}, every running order is
+              market-closed with no exceptions — including 20x+ positions. The bulk-watcher enforces this 24/7 too. Save settings to apply.
+            </span>
+          </span>
+        </label>
       </section>
       )}
 

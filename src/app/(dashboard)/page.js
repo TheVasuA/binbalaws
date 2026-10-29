@@ -60,6 +60,24 @@ export default function FuturesPage() {
   const alarmLossUsd = walletBalance * (alarmLossPercent / 100);
   const lossPercentOfMargin = walletBalance > 0 ? (realizedLoss / walletBalance) * 100 : 0;
 
+  // ── Base balance protection (overall portfolio floor) ─────────────────────
+  // The base balance is a rising floor that ratchets up with each day's profit
+  // (see baseBalanceProfitPercent). When the OVERALL portfolio — wallet balance
+  // plus live unrealized PnL (total equity) — drops to this floor, every running
+  // order is force-exited with no exceptions (including 20x+ positions), because
+  // this is the last line of defence for locked-in capital.
+  const baseBalance = Number(settings?.baseBalance) || 0;
+  const baseBalanceAlarmPercent = Number(settings?.baseBalanceAlarmPercent) || 0;
+  const baseBalanceAutoClose = Number(settings?.baseBalanceAutoClose) === 1;
+  // "Overall portfolio" = total equity (wallet + unrealized PnL).
+  const overallBalance = Number(mergedAccount?.totalMarginBalance) || 0;
+  // Reached the floor: overall equity at or below the base balance.
+  const baseBalanceReached = baseBalance > 0 && overallBalance <= baseBalance;
+  // Early warning: equity sits within alarmPercent% above the floor.
+  const baseBalanceAlarmUsd = baseBalance > 0 ? baseBalance * (1 + baseBalanceAlarmPercent / 100) : 0;
+  const baseBalanceNear =
+    baseBalance > 0 && overallBalance > baseBalance && overallBalance <= baseBalanceAlarmUsd;
+
   // Today's target from the compound rule: aim for compoundPercent% of wallet.
   // Progress uses the live net PnL (realized + unrealized) so it moves.
   const compoundPercent = Number(settings?.compoundPercent) || 2;
@@ -74,6 +92,8 @@ export default function FuturesPage() {
     posLimit: false,
     wsDown: false,
     autoClosed: false,
+    baseAlarm: false,
+    baseClosed: false,
   });
 
   const autoCloseOnBreaker = Number(settings?.autoCloseOnBreaker) === 1;
@@ -148,6 +168,64 @@ export default function FuturesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [breakerTripped, autoCloseOnBreaker]);
+
+  // Base balance alarm: beep + warning when overall equity gets within
+  // alarmPercent% of the base balance floor. Fires once per approach.
+  useEffect(() => {
+    if (baseBalance <= 0) return;
+    if (baseBalanceNear && !notifiedRef.current.baseAlarm) {
+      notifiedRef.current.baseAlarm = true;
+      notify({
+        level: 'warning',
+        beep: true,
+        sticky: true,
+        title: `⚠ Approaching base balance floor — ${formatCurrency(baseBalance)}`,
+        message: `Overall balance ${formatCurrency(overallBalance)} is within ${baseBalanceAlarmPercent}% of base. Positions will be force-closed on contact.`,
+      });
+    }
+    // Re-arm once equity climbs back ~15% past the alarm level.
+    if (!baseBalanceNear && overallBalance > baseBalanceAlarmUsd * 1.15 && notifiedRef.current.baseAlarm) {
+      notifiedRef.current.baseAlarm = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseBalanceNear, baseBalance, overallBalance, baseBalanceAlarmUsd, baseBalanceAlarmPercent]);
+
+  // Base balance protection: force-exit EVERY running order (including 20x+)
+  // the moment overall equity touches the base balance floor.
+  useEffect(() => {
+    if (!baseBalanceAutoClose) return;
+    // Re-arm the latch whenever nothing is open, so a fresh position opened
+    // while still at the floor gets force-exited too.
+    if (openPositionCount === 0) {
+      notifiedRef.current.baseClosed = false;
+      return;
+    }
+    if (baseBalanceReached && !notifiedRef.current.baseClosed) {
+      notifiedRef.current.baseClosed = true;
+      (async () => {
+        try {
+          const res = await fetch('/api/futures', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'closeAll', includeHuge: true }),
+          });
+          const json = await res.json();
+          const { closed = 0, skipped = 0, failed = 0 } = json?.data || {};
+          notify({
+            level: failed > 0 ? 'warning' : 'danger',
+            beep: true,
+            sticky: true,
+            title: '🛑 Base balance reached — force-closing all positions',
+            message: `Equity ${formatCurrency(overallBalance)} hit the ${formatCurrency(baseBalance)} floor. Closed ${closed}${skipped ? ` · skipped ${skipped}` : ''}${failed ? ` · failed ${failed}` : ''}.`,
+          });
+          refetchPositions();
+        } catch (err) {
+          notify({ level: 'danger', beep: true, title: 'Base-balance auto-close failed', message: err.message });
+        }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseBalanceReached, openPositionCount, baseBalanceAutoClose]);
 
   // Too many open positions.
   useEffect(() => {

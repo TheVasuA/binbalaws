@@ -23,15 +23,26 @@
 
 import {
   getFuturesPositions,
+  getFuturesAccount,
   closePositionsBySymbols,
+  closeAllPositions,
 } from '../src/lib/binance.js';
 import {
   listActiveBaskets,
   updateBasket,
   removeBasket,
 } from '../src/lib/bulk-basket-db.js';
+import { Redis } from '@upstash/redis';
 
 const POLL_MS = Number(process.env.BULK_WATCHER_POLL_MS) || 3000;
+
+// Portfolio settings live in Redis under this key — the same one the Next.js
+// settings API reads/writes, so the dashboard and the watcher stay in sync.
+const SETTINGS_KEY = 'portfolio_settings';
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 function log(...args) {
   console.log(new Date().toISOString(), '[bulk-watcher]', ...args);
@@ -114,6 +125,60 @@ async function tick() {
   }
 }
 
+// ── Base balance protection (overall portfolio floor) ───────────────────────
+// Independent of baskets: if overall equity (wallet + live PnL) drops to the
+// base balance floor, force-close EVERY running order (including 20x+). It
+// reads the same portfolio_settings the dashboard uses, so the VPS protects
+// the account 24/7 even when no browser tab is open.
+async function baseBalanceTick() {
+  let settings;
+  try {
+    settings = await redis.get(SETTINGS_KEY);
+  } catch {
+    // Redis hiccup is non-fatal for the watcher — skip this cycle.
+    return;
+  }
+
+  const baseBalance = Number(settings?.baseBalance) || 0;
+  const autoClose = Number(settings?.baseBalanceAutoClose) === 1;
+  // baseBalance of 0 (or auto-close off) disables the floor.
+  if (!(baseBalance > 0) || !autoClose) return;
+
+  let account;
+  try {
+    account = await getFuturesAccount();
+  } catch (err) {
+    log('Base-balance check: failed to fetch account:', err.message);
+    return;
+  }
+  const overall = Number(account?.totalMarginBalance) || 0;
+  if (overall > baseBalance) return; // above the floor — nothing to do
+
+  // At/below the floor: only act if there are actually open positions.
+  let positions;
+  try {
+    positions = await getFuturesPositions();
+  } catch (err) {
+    log('Base-balance check: failed to fetch positions:', err.message);
+    return;
+  }
+  const open = (positions || []).filter((p) => Math.abs(Number(p.positionAmt) || 0) > 0);
+  if (open.length === 0) return;
+
+  log(
+    `Base balance reached: equity ${overall.toFixed(2)} <= ${baseBalance}. ` +
+    `Force-closing all ${open.length} position(s) (includeHuge=true).`,
+  );
+  try {
+    const result = await closeAllPositions({ includeHuge: true });
+    log(
+      `Base-balance close: ${result.closed} closed, ${result.skipped} skipped, ${result.failed} failed.`,
+    );
+  } catch (err) {
+    log('Base-balance close FAILED:', err.message);
+  }
+}
+
 async function main() {
   if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
     log('FATAL: BINANCE_API_KEY / BINANCE_API_SECRET not set. Exiting.');
@@ -133,6 +198,7 @@ async function main() {
   while (true) {
     try {
       await tick();
+      await baseBalanceTick();
     } catch (err) {
       log('Unexpected tick error:', err.message);
     }
