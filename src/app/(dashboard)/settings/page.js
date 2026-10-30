@@ -96,10 +96,10 @@ const FIELDS = [
   {
     key: 'baseBalanceAlarmPercent',
     label: 'Base Balance Alarm %',
-    unit: '% before',
+    unit: '% above',
     step: '1',
     min: 0,
-    help: 'Beep + alert when balance is within this % of base balance.',
+    help: 'Alarm fires when balance drops to this % above base. E.g. base 600 + 10% → alarm at 660. Sounds for 15 min.',
   },
   {
     key: 'baseBalanceProfitPercent',
@@ -135,6 +135,9 @@ const FIELDS = [
     help: 'Warning when open orders reach this count.',
   },
 ];
+
+// Sections whose content is a settings form — these show the persistent Save bar.
+const EDITABLE_SECTIONS = new Set(['preferences', 'base-balance']);
 
 export default function SettingsPage() {
   const { settings, loading, saving, error, save, reset } = usePortfolioSettings();
@@ -566,25 +569,6 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
-
-        <div className="flex items-center gap-3 mt-5">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white transition-colors"
-          >
-            {saving ? 'Saving…' : 'Save Settings'}
-          </button>
-          <button
-            onClick={handleReset}
-            disabled={saving}
-            className="px-4 py-2 rounded-lg text-sm border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors"
-          >
-            Reset to Defaults
-          </button>
-          {savedFlash && <span className="text-green-400 text-sm">✓ Saved</span>}
-        </div>
       </section>
       )}
 
@@ -607,6 +591,31 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+      )}
+
+      {/* Persistent save bar — available on every section that edits settings,
+          so you never lose track of the Save button when switching tabs. */}
+      {EDITABLE_SECTIONS.has(activeSection) && (
+        <div className="sticky bottom-0 z-20 mt-4 -mx-1 px-1">
+          <div className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-gray-700 bg-gray-900/95 backdrop-blur-md px-4 py-3 shadow-2xl">
+            {error && <p className="text-red-400 text-sm mr-auto">{error}</p>}
+            {savedFlash && <span className="text-green-400 text-sm mr-auto">✓ Saved</span>}
+            <button
+              onClick={handleReset}
+              disabled={saving}
+              className="px-4 py-2 rounded-lg text-sm border border-gray-600 text-gray-300 hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            >
+              Reset to Defaults
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-5 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white transition-colors"
+            >
+              {saving ? 'Saving…' : 'Save Settings'}
+            </button>
+          </div>
+        </div>
       )}
 
         </div>{/* end content column */}

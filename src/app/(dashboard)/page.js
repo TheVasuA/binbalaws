@@ -85,7 +85,7 @@ export default function FuturesPage() {
   const todayProfit = Math.max(0, todayNet); // for the target bar (>=0)
 
   // ── Notifications ──────────────────────────────────────────────────────────
-  const { notify } = useNotify();
+  const { notify, startAlarm, stopAlarm } = useNotify();
   const notifiedRef = useRef({
     alarm: false,
     breaker: false,
@@ -169,23 +169,27 @@ export default function FuturesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [breakerTripped, autoCloseOnBreaker]);
 
-  // Base balance alarm: beep + warning when overall equity gets within
-  // alarmPercent% of the base balance floor. Fires once per approach.
+  // Base balance alarm: when overall equity enters the zone within
+  // baseBalanceAlarmPercent% ABOVE the base balance (e.g. base 600 + 10% = 660),
+  // raise a sticky warning and sound a repeating alarm for 15 minutes.
   useEffect(() => {
     if (baseBalance <= 0) return;
     if (baseBalanceNear && !notifiedRef.current.baseAlarm) {
       notifiedRef.current.baseAlarm = true;
+      // Sticky toast (the beep comes from the repeating alarm, not the toast).
       notify({
         level: 'warning',
-        beep: true,
         sticky: true,
         title: `⚠ Approaching base balance floor — ${formatCurrency(baseBalance)}`,
-        message: `Overall balance ${formatCurrency(overallBalance)} is within ${baseBalanceAlarmPercent}% of base. Positions will be force-closed on contact.`,
+        message: `Overall balance ${formatCurrency(overallBalance)} is within ${baseBalanceAlarmPercent}% of base (alarm at ${formatCurrency(baseBalanceAlarmUsd)}). Positions will be force-closed on contact. Alarm will sound for 15 min.`,
       });
+      // Repeating alarm sound for 15 minutes.
+      startAlarm({ durationMs: 15 * 60 * 1000, everyMs: 3000 });
     }
-    // Re-arm once equity climbs back ~15% past the alarm level.
+    // Re-arm + silence once equity climbs back ~15% past the alarm level.
     if (!baseBalanceNear && overallBalance > baseBalanceAlarmUsd * 1.15 && notifiedRef.current.baseAlarm) {
       notifiedRef.current.baseAlarm = false;
+      stopAlarm();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseBalanceNear, baseBalance, overallBalance, baseBalanceAlarmUsd, baseBalanceAlarmPercent]);
@@ -202,6 +206,7 @@ export default function FuturesPage() {
     }
     if (baseBalanceReached && !notifiedRef.current.baseClosed) {
       notifiedRef.current.baseClosed = true;
+      stopAlarm(); // floor hit — stop the approach alarm; the close toast beeps.
       (async () => {
         try {
           const res = await fetch('/api/futures', {

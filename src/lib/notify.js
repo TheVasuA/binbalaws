@@ -7,8 +7,29 @@ const NotifyContext = createContext(null);
 let _id = 0;
 const nextId = () => ++_id;
 
-// ── Alarm beep via Web Audio API (no external file, works offline) ──────────
-function playBeep({ times = 3, freq = 880, gap = 220 } = {}) {
+// ── Alarm sound ─────────────────────────────────────────────────────────────
+// Primary: a real alarm sound file (public-domain beep, shipped in /public —
+// originally sourced from the net). Browsers block audio until the user has
+// interacted with the page, so we "unlock" the element on the first gesture.
+// If the file can't load/play (e.g. Safari + ogg, or a fetch error), we fall
+// back to a synthetic Web Audio beep so the alarm is never silent.
+const ALARM_SRC = '/alarm.ogg';
+let _alarmEl = null;      // the shared <audio> element
+let _unlocked = false;    // becomes true after the first user gesture
+let _loopTimer = null;    // setInterval handle for the repeating alarm
+let _loopStopAt = 0;      // timestamp when the repeating alarm should stop
+
+function getAlarmEl() {
+  if (typeof window === 'undefined') return null;
+  if (_alarmEl) return _alarmEl;
+  const el = new Audio(ALARM_SRC);
+  el.preload = 'auto';
+  _alarmEl = el;
+  return el;
+}
+
+// Synthetic fallback beep (no file needed).
+function synthBeep({ times = 3, freq = 880, gap = 220 } = {}) {
   if (typeof window === 'undefined') return;
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -28,9 +49,69 @@ function playBeep({ times = 3, freq = 880, gap = 220 } = {}) {
       osc.stop(t + 0.16);
       t += gap / 1000;
     }
-    // Close context after the last beep to free resources.
     setTimeout(() => ctx.close().catch(() => {}), times * gap + 400);
   } catch { /* audio not available */ }
+}
+
+// Play the alarm file once; fall back to the synth beep on any failure.
+function playOnce(opts) {
+  const el = getAlarmEl();
+  if (!el) { synthBeep(opts); return; }
+  try {
+    el.currentTime = 0;
+    const p = el.play();
+    if (p && typeof p.catch === 'function') {
+      p.catch(() => synthBeep(opts)); // blocked or failed → fallback
+    }
+  } catch {
+    synthBeep(opts);
+  }
+}
+
+function playBeep(opts = {}) {
+  playOnce(opts);
+}
+
+// Unlock audio on the first user gesture so later programmatic plays are
+// allowed by the browser's autoplay policy.
+function installAudioUnlock() {
+  if (typeof window === 'undefined' || _unlocked) return;
+  const unlock = () => {
+    _unlocked = true;
+    const el = getAlarmEl();
+    if (el) {
+      // Prime the element: play muted then immediately pause/reset.
+      const prevMuted = el.muted;
+      el.muted = true;
+      const p = el.play();
+      const done = () => { el.pause(); el.currentTime = 0; el.muted = prevMuted; };
+      if (p && typeof p.then === 'function') p.then(done).catch(done);
+      else done();
+    }
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock, { once: true });
+  window.addEventListener('keydown', unlock, { once: true });
+}
+
+// Start a repeating alarm that beeps every `everyMs` for up to `durationMs`
+// (default 15 minutes). Idempotent: calling again just extends/refreshes it.
+function startAlarmLoop({ durationMs = 15 * 60 * 1000, everyMs = 3000, opts } = {}) {
+  if (typeof window === 'undefined') return;
+  _loopStopAt = Date.now() + durationMs;
+  playOnce(opts);
+  if (_loopTimer) return; // already looping; _loopStopAt was refreshed above
+  _loopTimer = setInterval(() => {
+    if (Date.now() >= _loopStopAt) { stopAlarmLoop(); return; }
+    playOnce(opts);
+  }, everyMs);
+}
+
+function stopAlarmLoop() {
+  if (_loopTimer) { clearInterval(_loopTimer); _loopTimer = null; }
+  _loopStopAt = 0;
+  if (_alarmEl) { try { _alarmEl.pause(); _alarmEl.currentTime = 0; } catch { /* ignore */ } }
 }
 
 /**
@@ -40,6 +121,9 @@ function playBeep({ times = 3, freq = 880, gap = 220 } = {}) {
 export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const timers = useRef({});
+
+  // Enable audio playback after the first click/keypress (browser autoplay rule).
+  useEffect(() => { installAudioUnlock(); }, []);
 
   const dismiss = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -62,13 +146,17 @@ export function NotificationProvider({ children }) {
     [dismiss],
   );
 
+  // Start/stop the repeating alarm (used for the 15-minute base-balance alert).
+  const startAlarm = useCallback((o) => startAlarmLoop(o), []);
+  const stopAlarm = useCallback(() => stopAlarmLoop(), []);
+
   useEffect(() => {
     const t = timers.current;
-    return () => { Object.values(t).forEach(clearTimeout); };
+    return () => { Object.values(t).forEach(clearTimeout); stopAlarmLoop(); };
   }, []);
 
   return (
-    <NotifyContext.Provider value={{ notify, dismiss }}>
+    <NotifyContext.Provider value={{ notify, dismiss, startAlarm, stopAlarm }}>
       {children}
       <ToastStack toasts={toasts} onDismiss={dismiss} />
     </NotifyContext.Provider>
@@ -78,7 +166,7 @@ export function NotificationProvider({ children }) {
 export function useNotify() {
   const ctx = useContext(NotifyContext);
   // Fallback no-op if used outside the provider.
-  return ctx || { notify: () => {}, dismiss: () => {} };
+  return ctx || { notify: () => {}, dismiss: () => {}, startAlarm: () => {}, stopAlarm: () => {} };
 }
 
 // ── Toast stack UI (bottom of page) ─────────────────────────────────────────
