@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ForceCloseAllButton from '@/components/ForceCloseAllButton';
+import UserMonitor from '@/components/UserMonitor';
 import { usePortfolioSettings } from '@/lib/settings';
 
 export default function Navbar({ onRefresh, loading, progressData }) {
@@ -148,6 +149,9 @@ export default function Navbar({ onRefresh, loading, progressData }) {
           )}
 
           <div className="flex items-center gap-2">
+            {/* User monitor — who is watching the portfolio (desktop) */}
+            <UserMonitor className="hidden sm:flex" />
+
             {/* Refresh Button */}
             {onRefresh && (
               <button
@@ -226,6 +230,12 @@ export default function Navbar({ onRefresh, loading, progressData }) {
               </Link>
             )
           ))}
+
+          {/* User monitor — who is watching the portfolio (mobile) */}
+          <div className="mt-3 pt-3 border-t border-gray-700">
+            <p className="text-gray-500 text-xs mb-2 px-1">Portfolio watcher</p>
+            <UserMonitor />
+          </div>
 
           {/* Close-all actions */}
           <div className="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-2">
