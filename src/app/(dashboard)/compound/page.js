@@ -1,17 +1,40 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFetch, formatCurrency } from '@/lib/utils';
+import { useBackendFuturesStream } from '@/lib/backendWS';
 
 export default function CompoundPage() {
   const { data: futuresData, loading: futuresLoading, refetch } = useFetch('/api/futures', { refreshInterval: 5 * 60 * 1000 }); // 5 min
+  // Live account for real-time auto-compound (updates on every balance tick).
+  const { account: liveAccount } = useBackendFuturesStream();
   const [completedTrades, setCompletedTrades] = useState([]);
   const [savedStartingBalance, setSavedStartingBalance] = useState(null);
   const [isDbLoaded, setIsDbLoaded] = useState(false);
   const [targetAmount, setTargetAmount] = useState(25000);
   const [profitPercent] = useState(2);
 
-  const currentBalance = futuresData?.account?.totalWalletBalance || 0;
+  // Auto-compound: when on, milestones auto-complete once the live balance
+  // reaches their target, and auto-undo if the balance falls into a loss below
+  // the last completed milestone's start. Opt-in and persisted per browser.
+  const [autoCompound, setAutoCompound] = useState(false);
+  useEffect(() => {
+    try { setAutoCompound(localStorage.getItem('autoCompound') === '1'); } catch { /* ignore */ }
+  }, []);
+  const toggleAutoCompound = useCallback(() => {
+    setAutoCompound((prev) => {
+      const next = !prev;
+      try { localStorage.setItem('autoCompound', next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  // Realized wallet balance drives auto-compound. Prefer the live stream's
+  // wallet balance (realized, excludes open-position floating PnL so auto
+  // actions don't thrash on every price wobble); fall back to the 5-min poll.
+  const liveWallet = Number(liveAccount?.totalWalletBalance);
+  const polledWallet = Number(futuresData?.account?.totalWalletBalance) || 0;
+  const currentBalance = Number.isFinite(liveWallet) && liveWallet > 0 ? liveWallet : polledWallet;
 
   const saveToDatabase = useCallback(async (balance, trades) => {
     try {
@@ -148,6 +171,64 @@ export default function CompoundPage() {
 
   const currentMilestone = milestones[completedCount] || null;
 
+  // ── Auto-compound: complete on target reached, undo on loss ───────────────
+  // Build the exact completed-trade record for a given milestone.
+  const makeRecord = useCallback((m) => ({
+    trade: m.trade,
+    startBalance: m.startBalance,
+    endBalance: m.endBalance,
+    profit: m.profit,
+    completedAt: new Date().toISOString(),
+    auto: true,
+  }), []);
+
+  // Latch so we only act on a change, and a short cooldown so a transient tick
+  // can't rapidly flip complete→undo→complete.
+  const autoRef = useRef({ lastAt: 0 });
+
+  useEffect(() => {
+    if (!autoCompound) return;
+    if (!isDbLoaded) return;
+    if (!(currentBalance > 0)) return;
+    if (milestones.length === 0) return;
+
+    // Cooldown: at most one auto adjustment per ~4s.
+    const now = Date.now();
+    if (now - autoRef.current.lastAt < 4000) return;
+
+    const count = completedTrades.length;
+
+    // 1) AUTO-COMPLETE: advance through every rung whose end target the live
+    //    balance has already reached (handles a jump across several rungs).
+    let newCount = count;
+    while (newCount < milestones.length && currentBalance >= milestones[newCount].endBalance) {
+      newCount++;
+    }
+    if (newCount > count) {
+      const added = milestones.slice(count, newCount).map(makeRecord);
+      const next = [...completedTrades, ...added];
+      autoRef.current.lastAt = now;
+      setCompletedTrades(next);
+      saveToDatabase(startingBalance, next);
+      return;
+    }
+
+    // 2) AUTO-UNDO on loss: if the balance has fallen below the START of the
+    //    last completed rung, that trade is back in the red — revert it. Cascade
+    //    downward while the balance is below each completed rung's start.
+    let revertTo = count;
+    while (revertTo > 0 && currentBalance < milestones[revertTo - 1].startBalance) {
+      revertTo--;
+    }
+    if (revertTo < count) {
+      const next = completedTrades.slice(0, revertTo);
+      autoRef.current.lastAt = now;
+      setCompletedTrades(next);
+      saveToDatabase(startingBalance, next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCompound, isDbLoaded, currentBalance, completedTrades.length, milestones.length, startingBalance]);
+
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
       {/* Header */}
@@ -159,6 +240,20 @@ export default function CompoundPage() {
           <p className="text-gray-400 mt-1">2% profit per trade to {formatCurrency(targetAmount)}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleAutoCompound}
+            aria-pressed={autoCompound}
+            title={autoCompound
+              ? 'Auto-compound is ON — milestones complete on target and undo on loss automatically'
+              : 'Turn on auto-compound: auto-complete on target reached, auto-undo on loss'}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+              autoCompound
+                ? 'bg-green-500/20 text-green-300 border-green-500/50'
+                : 'bg-gray-700/40 text-gray-300 border-gray-600 hover:bg-gray-700/70'
+            }`}
+          >
+            {autoCompound ? '🤖 Auto: ON' : '🤖 Auto: OFF'}
+          </button>
           {completedCount > 0 && (
             <button
               onClick={undoLastTrade}
@@ -176,6 +271,21 @@ export default function CompoundPage() {
           </button>
         </div>
       </div>
+
+      {/* Auto-compound status banner */}
+      {autoCompound && (
+        <div className="mb-6 flex items-center gap-2 rounded-xl border border-green-500/40 bg-green-500/10 px-4 py-2.5">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-400" />
+          </span>
+          <span className="text-sm text-green-200">
+            Auto-compound is running. Trades complete automatically when balance reaches
+            {currentMilestone ? ` ${formatCurrency(currentMilestone.endBalance)}` : ' the target'}, and
+            undo if balance drops into a loss.
+          </span>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
