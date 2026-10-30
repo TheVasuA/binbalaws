@@ -94,6 +94,7 @@ export default function FuturesPage() {
     autoClosed: false,
     baseAlarm: false,
     baseClosed: false,
+    baseFloorAlarm: false,
   });
 
   const autoCloseOnBreaker = Number(settings?.autoCloseOnBreaker) === 1;
@@ -194,6 +195,42 @@ export default function FuturesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseBalanceNear, baseBalance, overallBalance, baseBalanceAlarmUsd, baseBalanceAlarmPercent]);
 
+  // Base balance FLOOR alarm: the moment overall equity is AT or BELOW the base
+  // balance, sound the repeating 15-min alarm — regardless of whether auto-close
+  // is on. This also re-fires whenever a NEW position is opened while still at
+  // the floor (the latch re-arms when nothing is open), so reopening below the
+  // base balance always alarms. Works even if auto-close force-exits instantly.
+  useEffect(() => {
+    if (baseBalance <= 0) return;
+
+    // Nothing open → re-arm so the next position opened at the floor alarms again.
+    if (openPositionCount === 0) {
+      if (notifiedRef.current.baseFloorAlarm) {
+        notifiedRef.current.baseFloorAlarm = false;
+        stopAlarm();
+      }
+      return;
+    }
+
+    if (baseBalanceReached && !notifiedRef.current.baseFloorAlarm) {
+      notifiedRef.current.baseFloorAlarm = true;
+      notify({
+        level: 'danger',
+        sticky: true,
+        title: `🛑 Base balance reached — ${formatCurrency(baseBalance)}`,
+        message: `Overall balance ${formatCurrency(overallBalance)} is at/below the base floor with ${openPositionCount} position${openPositionCount === 1 ? '' : 's'} open. ${baseBalanceAutoClose ? 'Force-closing all now.' : 'Auto-close is OFF — close manually.'}`,
+      });
+      startAlarm({ durationMs: 15 * 60 * 1000, everyMs: 3000 });
+    }
+
+    // Recovered back above the floor → clear the latch and silence.
+    if (!baseBalanceReached && notifiedRef.current.baseFloorAlarm) {
+      notifiedRef.current.baseFloorAlarm = false;
+      stopAlarm();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseBalanceReached, openPositionCount, baseBalance, overallBalance, baseBalanceAutoClose]);
+
   // Base balance protection: force-exit EVERY running order (including 20x+)
   // the moment overall equity touches the base balance floor.
   useEffect(() => {
@@ -206,7 +243,8 @@ export default function FuturesPage() {
     }
     if (baseBalanceReached && !notifiedRef.current.baseClosed) {
       notifiedRef.current.baseClosed = true;
-      stopAlarm(); // floor hit — stop the approach alarm; the close toast beeps.
+      // Note: the floor alarm keeps ringing (handled by the floor-alarm effect)
+      // so you still hear it after the close and on any reopen at the floor.
       (async () => {
         try {
           const res = await fetch('/api/futures', {
