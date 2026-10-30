@@ -395,16 +395,50 @@ export async function POST(request) {
         : String(side).toUpperCase() === 'SHORT' ? 'SELL'
         : String(side).toUpperCase();
 
+      // ── Stop-loss lock ───────────────────────────────────────────────────
+      // A stop loss can be set once and then NOT modified. The exchange is the
+      // source of truth, so we read the live position's current SL. If one
+      // already exists, we pin the SL to that existing trigger regardless of
+      // what the client sent — only the take-profit may still be changed.
+      // (This matters because updateRisk does a blind cancel+replace of the
+      // exit orders; dropping the SL would otherwise cancel the locked SL.)
+      let effectiveSL = parsedSL;
+      try {
+        const positionsNow = await getFuturesPositions();
+        const sideUpper = String(side).toUpperCase();
+        const existing = (positionsNow || []).find(
+          (p) => String(p.symbol).toUpperCase() === String(symbol).toUpperCase()
+            && String(p.side).toUpperCase() === sideUpper,
+        );
+        const existingSL = existing && Number(existing.stopLossPrice) > 0
+          ? Number(existing.stopLossPrice)
+          : null;
+        if (existingSL !== null) {
+          // SL already set → it is locked. Keep it exactly as-is.
+          effectiveSL = existingSL;
+          if (parsedSL !== null && Number(parsedSL) !== existingSL) {
+            console.warn(`[updateRisk] SL for ${symbol} ${sideUpper} is locked at ${existingSL}; ignoring requested change to ${parsedSL}.`);
+          }
+        }
+      } catch (err) {
+        // If we can't verify the current SL, abort rather than risk the blind
+        // cancel+replace below dropping a locked SL. Fail closed.
+        console.error('[updateRisk] Could not verify existing SL; aborting to protect a possibly-locked SL:', err.message);
+        return NextResponse.json({
+          error: 'Could not verify the current stop loss. Try again — no changes were made.',
+        }, { status: 503 });
+      }
+
       // Exchange is the source of truth: cancel any existing SL/TP orders and
       // place the new ones on Binance so getFuturesPositions() reads them back.
       const cancelledOrderIds = await cancelFuturesExitOrders(symbol, normalizedSide);
 
       let riskOrders = null;
-      if (parsedSL !== null || parsedTP !== null) {
+      if (effectiveSL !== null || parsedTP !== null) {
         riskOrders = await placeFuturesExitOrders({
           symbol,
           entrySide: normalizedSide,
-          stopLossPrice: parsedSL,
+          stopLossPrice: effectiveSL,
           takeProfitPrice: parsedTP,
         });
       }
@@ -413,7 +447,7 @@ export async function POST(request) {
       const saved = await updateStoredRisk({
         symbol,
         side: normalizedSide,
-        stopLossPrice: parsedSL,
+        stopLossPrice: effectiveSL,
         takeProfitPrice: parsedTP,
       });
 
