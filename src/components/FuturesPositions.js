@@ -31,6 +31,57 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
   const [editTPPrice, setEditTPPrice] = useState('');
   const [editRiskSubmitting, setEditRiskSubmitting] = useState(false);
   const [editRiskError, setEditRiskError] = useState('');
+  // Auto-trailing stop controls (per open editor).
+  const [trailMode, setTrailMode] = useState('percent'); // 'percent' | 'usdt'
+  const [trailDistance, setTrailDistance] = useState('');
+  const [trailActivation, setTrailActivation] = useState('');
+  const [trailSubmitting, setTrailSubmitting] = useState(false);
+
+  const handleSetTrailing = async (position) => {
+    const dist = parseFloat(trailDistance);
+    if (!(dist > 0)) { setEditRiskError('Enter a positive trailing distance.'); return; }
+    setTrailSubmitting(true);
+    setEditRiskError('');
+    try {
+      const res = await fetch('/api/futures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setTrailing',
+          symbol: position.symbol,
+          side: position.side,
+          trailMode,
+          trailDistance: dist,
+          activationProfit: parseFloat(trailActivation) || 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to set trailing stop');
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setEditRiskError(err.message);
+    } finally {
+      setTrailSubmitting(false);
+    }
+  };
+
+  const handleCancelTrailing = async (position) => {
+    setTrailSubmitting(true);
+    try {
+      const res = await fetch('/api/futures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancelTrailing', symbol: position.symbol, side: position.side }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to cancel trailing stop');
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setEditRiskError(err.message);
+    } finally {
+      setTrailSubmitting(false);
+    }
+  };
 
   const openEditRisk = (position) => {
     setEditRiskSymbol(position.symbol);
@@ -629,6 +680,56 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                       className="px-3 py-1.5 rounded text-xs border border-gray-600 text-gray-300 hover:bg-gray-800">
                       Cancel
                     </button>
+                  </div>
+
+                  {/* ── Auto-trailing stop ─────────────────────────────── */}
+                  <div className="mt-2 pt-2 border-t border-gray-700/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-blue-300">📈 Auto-Trailing Stop</span>
+                      {position.trailing ? (
+                        <span className="text-[9px] text-green-300 bg-green-500/15 border border-green-500/40 rounded px-1.5 py-0.5">
+                          ON · {position.trailing.mode === 'usdt' ? `${position.trailing.distance} USDT` : `${position.trailing.distance}%`} behind
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-gray-500">off</span>
+                      )}
+                    </div>
+                    <p className="text-[9px] text-gray-500">
+                      Keeps the SL this far behind the best price, locking profit automatically (runs 24/7 on the server).
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex gap-1 bg-gray-800 border border-gray-700 rounded p-0.5">
+                        <button type="button" onClick={() => setTrailMode('percent')}
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${trailMode === 'percent' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>%</button>
+                        <button type="button" onClick={() => setTrailMode('usdt')}
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${trailMode === 'usdt' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>USDT</button>
+                      </div>
+                      <input
+                        type="number" min="0" step="any" placeholder={trailMode === 'usdt' ? 'USDT behind' : '% behind'}
+                        value={trailDistance}
+                        onChange={(e) => setTrailDistance(e.target.value)}
+                        className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                      <input
+                        type="number" min="0" step="any" placeholder="activate @ +USDT"
+                        value={trailActivation}
+                        onChange={(e) => setTrailActivation(e.target.value)}
+                        title="Only start trailing once profit reaches this many USDT (optional)"
+                        className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleSetTrailing(position)} disabled={trailSubmitting}
+                        className="flex-1 py-1 rounded text-[11px] font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white">
+                        {trailSubmitting ? 'Saving...' : (position.trailing ? 'Update Trailing' : 'Enable Trailing')}
+                      </button>
+                      {position.trailing && (
+                        <button onClick={() => handleCancelTrailing(position)} disabled={trailSubmitting}
+                          className="px-3 py-1 rounded text-[11px] border border-gray-600 text-gray-300 hover:bg-gray-800">
+                          Stop
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

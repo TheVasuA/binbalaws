@@ -38,6 +38,12 @@ import {
   incrementSlChanges,
   resetSlChanges,
 } from '@/lib/sl-lock-db';
+import {
+  setTrailingStop,
+  getTrailingStop,
+  removeTrailingStop,
+  listTrailingStops,
+} from '@/lib/trailing-stop-db';
 import { Redis } from '@upstash/redis';
 
 const redis = new Redis({
@@ -132,16 +138,21 @@ async function loadFuturesSnapshot() {
     getFuturesOpenOrders(),
   ]);
 
-  // Annotate each position with its SL-change allowance so the UI can lock the
-  // stop-loss editor once the limit (set once + 2 modifications) is used up.
+  // Annotate each position with its SL-change allowance (so the UI can lock the
+  // stop-loss editor once the limit is used up) and its trailing-stop config.
   const annotated = await Promise.all((positions || []).map(async (p) => {
     let slChanges = 0;
+    let trailing = null;
     try { slChanges = await getSlChanges(p.symbol, p.side); } catch { /* ignore */ }
+    try { trailing = await getTrailingStop(p.symbol, p.side); } catch { /* ignore */ }
     return {
       ...p,
       slChanges,
       slChangesRemaining: Math.max(0, MAX_SL_CHANGES - slChanges),
       slLocked: slChanges >= MAX_SL_CHANGES,
+      trailing: trailing
+        ? { mode: trailing.mode, distance: trailing.distance, activationProfit: trailing.activationProfit, lastSL: trailing.lastSL }
+        : null,
     };
   }));
 
@@ -651,6 +662,41 @@ export async function POST(request) {
       const result = await closeAllPositions({ includeHuge: includeHuge === true });
       await invalidateFuturesCaches();
       return NextResponse.json({ success: true, data: result });
+    }
+
+    if (action === 'setTrailing') {
+      // Enable/update an auto-trailing stop for a position. The standalone
+      // watcher then ratchets the SL to stay `distance` behind the peak price.
+      // Body: { symbol, side, trailMode:'percent'|'usdt', trailDistance, activationProfit? }
+      if (!symbol || !side) {
+        return NextResponse.json({ error: 'symbol and side are required' }, { status: 400 });
+      }
+      const dist = Number(body.trailDistance);
+      if (!Number.isFinite(dist) || dist <= 0) {
+        return NextResponse.json({ error: 'trailDistance must be a positive number' }, { status: 400 });
+      }
+      const cfg = await setTrailingStop({
+        symbol,
+        side,
+        mode: body.trailMode === 'usdt' ? 'usdt' : 'percent',
+        distance: dist,
+        activationProfit: Number(body.activationProfit) || 0,
+        armed: true,
+      });
+      return NextResponse.json({ success: true, data: cfg });
+    }
+
+    if (action === 'cancelTrailing') {
+      if (!symbol || !side) {
+        return NextResponse.json({ error: 'symbol and side are required' }, { status: 400 });
+      }
+      await removeTrailingStop(symbol, side);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'listTrailing') {
+      const items = await listTrailingStops();
+      return NextResponse.json({ success: true, data: items });
     }
 
     return NextResponse.json({

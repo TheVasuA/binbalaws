@@ -26,12 +26,19 @@ import {
   getFuturesAccount,
   closePositionsBySymbols,
   closeAllPositions,
+  replaceFuturesStopLoss,
 } from '../src/lib/binance.js';
 import {
   listActiveBaskets,
   updateBasket,
   removeBasket,
 } from '../src/lib/bulk-basket-db.js';
+import {
+  listTrailingStops,
+  updateTrailingRuntime,
+  removeTrailingStop,
+  computeTrailingSL,
+} from '../src/lib/trailing-stop-db.js';
 import { Redis } from '@upstash/redis';
 
 const POLL_MS = Number(process.env.BULK_WATCHER_POLL_MS) || 3000;
@@ -179,6 +186,105 @@ async function baseBalanceTick() {
   }
 }
 
+// ── Auto-trailing stop ───────────────────────────────────────────────────────
+// For each position with a trailing config, track the best (most favorable)
+// mark price and keep the stop loss a fixed distance behind it. The stop only
+// ever moves in the profit-locking direction (up for LONG, down for SHORT),
+// never looser. Independent of the 3-change UI lock — this is an automated,
+// risk-reducing adjustment.
+// Only re-place the SL when it would move by a meaningful amount to avoid
+// hammering the exchange on every tiny tick.
+const TRAIL_MIN_STEP_FRAC = 0.0005; // 0.05% of price minimum move to act
+
+async function trailingTick() {
+  let configs;
+  try {
+    configs = await listTrailingStops();
+  } catch (err) {
+    log('Trailing: failed to read configs:', err.message);
+    return;
+  }
+  if (!configs || configs.length === 0) return;
+
+  let positions;
+  try {
+    positions = await getFuturesPositions();
+  } catch (err) {
+    log('Trailing: failed to fetch positions:', err.message);
+    return;
+  }
+  const bySymbolSide = new Map(
+    positions.map((p) => [`${p.symbol}:${String(p.side).toUpperCase()}`, p]),
+  );
+
+  for (const cfg of configs) {
+    if (cfg.armed === false) continue;
+    const key = `${cfg.symbol}:${cfg.side}`;
+    const pos = bySymbolSide.get(key);
+
+    // Position gone → trailing config is stale, remove it.
+    if (!pos || Math.abs(Number(pos.positionAmt) || 0) <= 0) {
+      try { await removeTrailingStop(cfg.symbol, cfg.side); } catch { /* ignore */ }
+      continue;
+    }
+
+    const mark = Number(pos.markPrice);
+    const entry = Number(pos.entryPrice);
+    const qty = Math.abs(Number(pos.positionAmt));
+    if (!(mark > 0) || !(entry > 0) || !(qty > 0)) continue;
+
+    // Optional activation gate: only trail once the position is in profit by
+    // at least activationProfit USDT.
+    const pnl = cfg.side === 'LONG' ? (mark - entry) * qty : (entry - mark) * qty;
+    if (Number(cfg.activationProfit) > 0 && pnl < Number(cfg.activationProfit)) {
+      continue;
+    }
+
+    // Update the high-water mark (best favorable price seen).
+    const prevPeak = Number(cfg.highWaterMark);
+    const peak = cfg.side === 'LONG'
+      ? Math.max(Number.isFinite(prevPeak) ? prevPeak : mark, mark)
+      : Math.min(Number.isFinite(prevPeak) ? prevPeak : mark, mark);
+
+    const desiredSL = computeTrailingSL({
+      side: cfg.side, mode: cfg.mode, distance: cfg.distance, peak, qty,
+    });
+    if (!(desiredSL > 0)) {
+      await updateTrailingRuntime(cfg.symbol, cfg.side, { highWaterMark: peak });
+      continue;
+    }
+
+    // Never let the trailing stop sit past the current price (would trigger now).
+    const safeSL = cfg.side === 'LONG' ? Math.min(desiredSL, mark * 0.999) : Math.max(desiredSL, mark * 1.001);
+
+    // Only move the SL in the profit-locking direction and by a meaningful step.
+    const lastSL = Number(cfg.lastSL);
+    const hasLast = Number.isFinite(lastSL) && lastSL > 0;
+    const improves = !hasLast || (cfg.side === 'LONG' ? safeSL > lastSL : safeSL < lastSL);
+    const step = hasLast ? Math.abs(safeSL - lastSL) : Infinity;
+    const meaningful = step >= mark * TRAIL_MIN_STEP_FRAC;
+
+    if (improves && meaningful) {
+      try {
+        const entrySide = cfg.side === 'LONG' ? 'BUY' : 'SELL';
+        const res = await replaceFuturesStopLoss({
+          symbol: cfg.symbol, entrySide, stopLossPrice: safeSL,
+        });
+        log(`Trailing ${key}: SL → ${res.trigger} (peak ${peak}, mark ${mark}, PnL ${pnl.toFixed(2)}).`);
+        await updateTrailingRuntime(cfg.symbol, cfg.side, { highWaterMark: peak, lastSL: res.trigger });
+      } catch (err) {
+        log(`Trailing ${key}: failed to move SL:`, err.message);
+        await updateTrailingRuntime(cfg.symbol, cfg.side, { highWaterMark: peak });
+      }
+    } else {
+      // Still record the new peak even if we didn't move the stop this tick.
+      if (!Number.isFinite(prevPeak) || peak !== prevPeak) {
+        await updateTrailingRuntime(cfg.symbol, cfg.side, { highWaterMark: peak });
+      }
+    }
+  }
+}
+
 async function main() {
   if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
     log('FATAL: BINANCE_API_KEY / BINANCE_API_SECRET not set. Exiting.');
@@ -199,6 +305,7 @@ async function main() {
     try {
       await tick();
       await baseBalanceTick();
+      await trailingTick();
     } catch (err) {
       log('Unexpected tick error:', err.message);
     }

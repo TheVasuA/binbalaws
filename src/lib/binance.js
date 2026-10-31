@@ -1005,6 +1005,55 @@ export async function cancelFuturesExitOrders(symbol, entrySide) {
   return cancelled;
 }
 
+// Stop-loss-only algo order types (for the trailing stop, which must leave any
+// take-profit order untouched).
+const ALGO_SL_TYPES = new Set(['STOP_MARKET', 'STOP']);
+
+// Replace ONLY the stop-loss algo order for a position, preserving any TP.
+// Cancels the existing SL (for the exit side) and places a fresh STOP_MARKET at
+// the new trigger. Used by the auto-trailing stop so it can ratchet the SL
+// without disturbing the take-profit. `entrySide` is BUY for LONG, SELL for SHORT.
+export async function replaceFuturesStopLoss({ symbol, entrySide, stopLossPrice, pricePrecision = null }) {
+  const normalizedEntrySide = String(entrySide || '').toUpperCase();
+  const upperSymbol = String(symbol || '').toUpperCase();
+  if (!upperSymbol || !['BUY', 'SELL'].includes(normalizedEntrySide)) {
+    throw new Error('Invalid symbol or entry side for replacing SL');
+  }
+
+  let resolvedPrecision = pricePrecision;
+  if (resolvedPrecision === null || resolvedPrecision === undefined) {
+    resolvedPrecision = await getFuturesPricePrecision(upperSymbol);
+  }
+  const trigger = normalizeTriggerPrice(stopLossPrice, resolvedPrecision);
+  if (!trigger) throw new Error('Invalid stopLossPrice for trailing stop');
+
+  const exitSide = normalizedEntrySide === 'BUY' ? 'SELL' : 'BUY';
+
+  // Cancel only the existing STOP order(s) on the exit side; leave TP alone.
+  const algoOrders = await getFuturesOpenAlgoOrders(upperSymbol);
+  for (const o of algoOrders) {
+    if (ALGO_SL_TYPES.has(o.orderType) && String(o.side).toUpperCase() === exitSide) {
+      try {
+        await futuresSignedDelete('/fapi/v1/algoOrder', { symbol: upperSymbol, algoId: o.algoId });
+      } catch (error) {
+        console.error(`Failed to cancel old SL ${o.algoId} for ${upperSymbol}:`, error.message);
+      }
+    }
+  }
+
+  const placed = await futuresSignedPost('/fapi/v1/algoOrder', {
+    symbol: upperSymbol,
+    side: exitSide,
+    algoType: 'CONDITIONAL',
+    type: 'STOP_MARKET',
+    triggerPrice: trigger,
+    closePosition: 'true',
+    workingType: 'MARK_PRICE',
+  });
+
+  return { trigger: Number(trigger), placed };
+}
+
 // Cancel a single open futures order (e.g. a resting LIMIT entry) by orderId.
 export async function cancelFuturesOrder(symbol, orderId) {
   const upperSymbol = String(symbol || '').toUpperCase();
