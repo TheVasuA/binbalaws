@@ -32,6 +32,12 @@ import {
   updateBasket,
   removeSymbolsFromBasket,
 } from '@/lib/bulk-basket-db';
+import {
+  MAX_SL_CHANGES,
+  getSlChanges,
+  incrementSlChanges,
+  resetSlChanges,
+} from '@/lib/sl-lock-db';
 import { Redis } from '@upstash/redis';
 
 const redis = new Redis({
@@ -126,11 +132,24 @@ async function loadFuturesSnapshot() {
     getFuturesOpenOrders(),
   ]);
 
-  const riskMetrics = calculateFuturesRiskMetrics(positions, account);
+  // Annotate each position with its SL-change allowance so the UI can lock the
+  // stop-loss editor once the limit (set once + 2 modifications) is used up.
+  const annotated = await Promise.all((positions || []).map(async (p) => {
+    let slChanges = 0;
+    try { slChanges = await getSlChanges(p.symbol, p.side); } catch { /* ignore */ }
+    return {
+      ...p,
+      slChanges,
+      slChangesRemaining: Math.max(0, MAX_SL_CHANGES - slChanges),
+      slLocked: slChanges >= MAX_SL_CHANGES,
+    };
+  }));
+
+  const riskMetrics = calculateFuturesRiskMetrics(annotated, account);
 
   return {
     account,
-    positions,
+    positions: annotated,
     openOrders: rawOpenOrders,
     riskMetrics,
   };
@@ -356,6 +375,18 @@ export async function POST(request) {
         takeProfitPrice: parsedTakeProfitPrice,
       });
 
+      // Reset the SL-change counter for this fresh position so it starts with a
+      // full allowance again. If an SL was placed at entry, that counts as the
+      // first of the allowed writes.
+      try {
+        await resetSlChanges(symbol, side);
+        if (!isLimitEntry && parsedStopLossPrice !== null) {
+          await incrementSlChanges(symbol, side);
+        }
+      } catch (err) {
+        console.error('[openPosition] Failed to reset SL change counter:', err.message);
+      }
+
       await invalidateFuturesCaches();
 
       return NextResponse.json({
@@ -395,38 +426,58 @@ export async function POST(request) {
         : String(side).toUpperCase() === 'SHORT' ? 'SELL'
         : String(side).toUpperCase();
 
-      // ── Stop-loss lock ───────────────────────────────────────────────────
-      // A stop loss can be set once and then NOT modified. The exchange is the
-      // source of truth, so we read the live position's current SL. If one
-      // already exists, we pin the SL to that existing trigger regardless of
-      // what the client sent — only the take-profit may still be changed.
-      // (This matters because updateRisk does a blind cancel+replace of the
-      // exit orders; dropping the SL would otherwise cancel the locked SL.)
-      let effectiveSL = parsedSL;
+      // ── Stop-loss lock (set once + up to 2 modifications, then locked) ────
+      // The exchange is the source of truth for the current SL. We also keep a
+      // per-position counter in Redis of how many times the SL has been written.
+      // The SL may be written up to MAX_SL_CHANGES times (initial set + 2
+      // modifications). After that it locks: any attempt to change it is ignored
+      // and the existing SL is re-placed as-is. The take-profit is always
+      // editable. The counter resets when a new position is opened (see
+      // openPosition → resetSlChanges).
+      const sideUpper = String(side).toUpperCase();
+      let existingSL = null;
       try {
         const positionsNow = await getFuturesPositions();
-        const sideUpper = String(side).toUpperCase();
         const existing = (positionsNow || []).find(
           (p) => String(p.symbol).toUpperCase() === String(symbol).toUpperCase()
             && String(p.side).toUpperCase() === sideUpper,
         );
-        const existingSL = existing && Number(existing.stopLossPrice) > 0
+        existingSL = existing && Number(existing.stopLossPrice) > 0
           ? Number(existing.stopLossPrice)
           : null;
-        if (existingSL !== null) {
-          // SL already set → it is locked. Keep it exactly as-is.
-          effectiveSL = existingSL;
-          if (parsedSL !== null && Number(parsedSL) !== existingSL) {
-            console.warn(`[updateRisk] SL for ${symbol} ${sideUpper} is locked at ${existingSL}; ignoring requested change to ${parsedSL}.`);
-          }
-        }
       } catch (err) {
         // If we can't verify the current SL, abort rather than risk the blind
-        // cancel+replace below dropping a locked SL. Fail closed.
-        console.error('[updateRisk] Could not verify existing SL; aborting to protect a possibly-locked SL:', err.message);
+        // cancel+replace below dropping an SL. Fail closed.
+        console.error('[updateRisk] Could not verify existing SL; aborting:', err.message);
         return NextResponse.json({
           error: 'Could not verify the current stop loss. Try again — no changes were made.',
         }, { status: 503 });
+      }
+
+      const slChanges = await getSlChanges(symbol, sideUpper);
+      const slLocked = slChanges >= MAX_SL_CHANGES;
+      // A "change" is requested when the client sent an SL value that differs
+      // from the one currently on the exchange.
+      const slChangeRequested = parsedSL !== null
+        && (existingSL === null || Number(parsedSL) !== existingSL);
+
+      let effectiveSL = parsedSL;
+      let willCountSlWrite = false;
+
+      if (slLocked) {
+        // Locked → keep the existing SL exactly, ignore any requested change.
+        effectiveSL = existingSL;
+        if (slChangeRequested) {
+          console.warn(`[updateRisk] SL for ${symbol} ${sideUpper} is LOCKED after ${slChanges} changes; ignoring change to ${parsedSL}.`);
+        }
+      } else if (slChangeRequested) {
+        // Allowed change within the limit → apply it and count this write.
+        effectiveSL = parsedSL;
+        willCountSlWrite = true;
+      } else {
+        // No SL change requested → preserve whatever is currently set so the
+        // cancel+replace doesn't drop it.
+        effectiveSL = existingSL;
       }
 
       // Exchange is the source of truth: cancel any existing SL/TP orders and
@@ -443,6 +494,12 @@ export async function POST(request) {
         });
       }
 
+      // Count this SL write only after it was placed successfully.
+      let slChangesNow = slChanges;
+      if (willCountSlWrite) {
+        try { slChangesNow = await incrementSlChanges(symbol, sideUpper); } catch { /* ignore */ }
+      }
+
       // Keep the local record in sync (used only as a fallback / audit trail).
       const saved = await updateStoredRisk({
         symbol,
@@ -455,7 +512,14 @@ export async function POST(request) {
 
       return NextResponse.json({
         success: true,
-        data: { saved, riskOrders, cancelledOrderIds },
+        data: {
+          saved,
+          riskOrders,
+          cancelledOrderIds,
+          slChanges: slChangesNow,
+          slChangesRemaining: Math.max(0, MAX_SL_CHANGES - slChangesNow),
+          slLocked: slChangesNow >= MAX_SL_CHANGES,
+        },
       });
     }
 
