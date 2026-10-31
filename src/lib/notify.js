@@ -17,8 +17,22 @@ let _unlocked = false;    // becomes true after the first user gesture
 let _audioCtx = null;     // single persistent Web Audio context
 let _loopTimer = null;    // setInterval handle for the repeating alarm
 let _stopTimer = null;    // setTimeout handle that ends the whole alarm
-let _alarmActive = false; // true while the 15-min alarm is sounding
+let _alarmActive = false; // true while the alarm is sounding
+const _alarmListeners = new Set(); // UI subscribers notified on alarm start/stop
 let _selectedTone = 'classic'; // current alarm tone id (set from settings)
+
+// Notify UI subscribers whenever the alarm turns on/off.
+function emitAlarmActive(v) {
+  _alarmActive = v;
+  _alarmListeners.forEach((fn) => { try { fn(v); } catch { /* ignore */ } });
+}
+
+// Subscribe to alarm on/off state changes (used by the Stop-Alarm button).
+export function onAlarmActive(fn) {
+  _alarmListeners.add(fn);
+  return () => { _alarmListeners.delete(fn); };
+}
+export function isAlarmActive() { return _alarmActive; }
 
 // ── 10 selectable alarm tones ───────────────────────────────────────────────
 // Each tone is a short pattern of notes played via Web Audio (no files needed,
@@ -122,6 +136,7 @@ function startAlarmLoop({ durationMs = 15 * 60 * 1000, everyMs = 3000, toneId } 
 
   if (_alarmActive) return; // already sounding; duration just extended above
   _alarmActive = true;
+  emitAlarmActive(true);
 
   // Repeat the chosen tone for the whole duration — fires now, then every everyMs.
   playTone(tone);
@@ -132,6 +147,7 @@ function startAlarmLoop({ durationMs = 15 * 60 * 1000, everyMs = 3000, toneId } 
 
 function stopAlarmLoop() {
   _alarmActive = false;
+  emitAlarmActive(false);
   if (_loopTimer) { clearInterval(_loopTimer); _loopTimer = null; }
   if (_stopTimer) { clearTimeout(_stopTimer); _stopTimer = null; }
 }
@@ -156,13 +172,13 @@ export function NotificationProvider({ children }) {
   }, []);
 
   const notify = useCallback(
-    ({ title, message, level = 'info', beep = false, duration = 6000, sticky = false }) => {
+    ({ title, message, level = 'info', beep = false, duration = 5000, sticky = false } = {}) => {
       const id = nextId();
       setToasts((prev) => [...prev, { id, title, message, level }]);
-      if (beep) playBeep(level === 'danger' ? { times: 4, freq: 660 } : { times: 2 });
-      if (!sticky) {
-        timers.current[id] = setTimeout(() => dismiss(id), duration);
-      }
+      if (beep) playBeep();
+      // Every notification auto-hides after `duration` ms (default 5s) so the
+      // stack never piles up — even "sticky" ones dismiss on the timer.
+      timers.current[id] = setTimeout(() => dismiss(id), duration);
       return id;
     },
     [dismiss],
@@ -172,6 +188,10 @@ export function NotificationProvider({ children }) {
   const startAlarm = useCallback((o) => startAlarmLoop(o), []);
   const stopAlarm = useCallback(() => stopAlarmLoop(), []);
 
+  // Track whether the alarm is currently sounding so we can show a Stop button.
+  const [alarmActive, setAlarmActive] = useState(false);
+  useEffect(() => onAlarmActive(setAlarmActive), []);
+
   useEffect(() => {
     const t = timers.current;
     return () => { Object.values(t).forEach(clearTimeout); stopAlarmLoop(); };
@@ -180,6 +200,16 @@ export function NotificationProvider({ children }) {
   return (
     <NotifyContext.Provider value={{ notify, dismiss, startAlarm, stopAlarm }}>
       {children}
+      {/* Floating "Stop alarm" button — shown only while the alarm is ringing */}
+      {alarmActive && (
+        <button
+          onClick={() => stopAlarm()}
+          className="fixed left-4 bottom-20 z-[101] flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-2xl border border-red-400/50 animate-pulse"
+          title="Stop the alarm sound"
+        >
+          <span className="text-lg">🔇</span> Stop Alarm
+        </button>
+      )}
       <ToastStack toasts={toasts} onDismiss={dismiss} />
     </NotifyContext.Provider>
   );
@@ -202,7 +232,7 @@ const LEVEL_ICON = { info: 'ℹ️', success: '✅', warning: '⚠️', danger: 
 
 function ToastStack({ toasts, onDismiss }) {
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-[92%] max-w-md pointer-events-none">
+    <div className="fixed bottom-4 left-4 z-[100] flex flex-col gap-2 w-[92%] max-w-sm pointer-events-none">
       {toasts.map((t) => (
         <div
           key={t.id}
