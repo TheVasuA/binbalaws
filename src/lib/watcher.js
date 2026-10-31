@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
-// Which users are currently "watching" the portfolio. This is a lightweight,
-// client-side monitor indicator (persisted per browser) — it marks who is
-// keeping an eye on the dashboard. Any combination is allowed: nobody, just A,
-// just B, or both. Stored as a comma-joined list of ids, e.g. "A,B".
-const STORAGE_KEY = 'portfolioWatchers';
+// Which users are currently "watching" the portfolio. This is SERVER-SHARED
+// (Redis via /api/watcher) so toggling User A/B on one system reflects on every
+// other system within the poll interval. Any combination is allowed: nobody,
+// just A, just B, or both.
 const EVENT = 'portfolio-watcher-change';
+const POLL_MS = 3000; // sync across systems within ~3 seconds
 
 export const WATCHERS = [
   { id: 'A', label: 'User A' },
@@ -16,61 +16,89 @@ export const WATCHERS = [
 
 const VALID = new Set(WATCHERS.map((w) => w.id));
 
-function read() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY) || '';
-    return raw.split(',').map((s) => s.trim()).filter((s) => VALID.has(s));
-  } catch {
-    return [];
-  }
+function canonical(list) {
+  const arr = Array.isArray(list) ? list.map(String) : [];
+  return WATCHERS.map((w) => w.id).filter((id) => arr.includes(id) && VALID.has(id));
 }
 
-function write(ids) {
-  // Keep canonical order (A before B) and dedupe.
-  const ordered = WATCHERS.map((w) => w.id).filter((id) => ids.includes(id));
-  try {
-    if (ordered.length) localStorage.setItem(STORAGE_KEY, ordered.join(','));
-    else localStorage.removeItem(STORAGE_KEY);
-  } catch { /* ignore storage errors */ }
-  return ordered;
+function sameSet(a, b) {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
+async function fetchWatchers() {
+  const res = await fetch('/api/watcher', { cache: 'no-store' });
+  const json = await res.json();
+  return canonical(json?.watchers);
+}
+
+async function saveWatchers(ids) {
+  const res = await fetch('/api/watcher', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ watchers: canonical(ids) }),
+  });
+  const json = await res.json();
+  return canonical(json?.watchers);
 }
 
 /**
- * useWatcher — read + toggle which users are watching the portfolio.
- * Each user toggles independently, so both can watch at once. Syncs across
- * components and browser tabs.
+ * useWatcher — read + toggle which users are watching the portfolio, synced
+ * across all systems via the server. Polls every 3s so another system's change
+ * shows up here within ~3 seconds.
  *
  * Returns:
  *   watchers  — array of active ids, e.g. [], ['A'], ['A','B']
  *   isOn(id)  — whether a given user is watching
- *   toggle(id)— flip a single user on/off
+ *   toggle(id)— flip a single user on/off (persists to the server)
  *   setWatchers(ids) — set the full list explicitly
  */
 export function useWatcher() {
-  // Start empty so server and first client render match (no hydration
-  // mismatch); sync from localStorage right after mount via the subscription.
   const [watchers, setWatchersState] = useState([]);
+  const watchersRef = useRef([]);
+  watchersRef.current = watchers;
 
+  // Poll the server so changes made on other systems sync in within POLL_MS.
   useEffect(() => {
-    const onChange = () => setWatchersState(read());
-    onChange(); // initial sync from localStorage after mount
-    window.addEventListener(EVENT, onChange);
-    window.addEventListener('storage', onChange);
+    let stopped = false;
+
+    const sync = async () => {
+      try {
+        const next = await fetchWatchers();
+        if (!stopped && !sameSet(next, watchersRef.current)) {
+          setWatchersState(next);
+        }
+      } catch { /* ignore transient network errors */ }
+    };
+
+    sync(); // immediate first load
+    const interval = setInterval(sync, POLL_MS);
+
+    // Also refresh on same-tab toggles and when the tab regains focus.
+    const onLocal = () => sync();
+    window.addEventListener(EVENT, onLocal);
+    window.addEventListener('focus', onLocal);
+
     return () => {
-      window.removeEventListener(EVENT, onChange);
-      window.removeEventListener('storage', onChange);
+      stopped = true;
+      clearInterval(interval);
+      window.removeEventListener(EVENT, onLocal);
+      window.removeEventListener('focus', onLocal);
     };
   }, []);
 
-  const setWatchers = useCallback((ids) => {
-    const next = write(Array.isArray(ids) ? ids : []);
-    setWatchersState(next);
+  const setWatchers = useCallback(async (ids) => {
+    const optimistic = canonical(ids);
+    setWatchersState(optimistic); // instant local feedback
+    try {
+      const saved = await saveWatchers(optimistic);
+      setWatchersState(saved);
+    } catch { /* keep optimistic value; next poll reconciles */ }
     try { window.dispatchEvent(new Event(EVENT)); } catch { /* ignore */ }
   }, []);
 
   const toggle = useCallback((id) => {
     if (!VALID.has(id)) return;
-    const current = read();
+    const current = watchersRef.current;
     const next = current.includes(id)
       ? current.filter((x) => x !== id)
       : [...current, id];

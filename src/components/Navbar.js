@@ -15,42 +15,22 @@ export default function Navbar({ onRefresh, loading, progressData }) {
     if (settings?.goalTarget !== undefined) setGoalTarget(Number(settings.goalTarget) || 25000);
   }, [settings]);
 
-      // Mobile trade summary (shown below navbar)
+      // Mobile trade summary (shown below navbar) — trade number + target only.
       const MobileTradeSummary = () => (
         progressData?.currentTradeNum ? (
           <div className="md:hidden w-full px-4 py-3 z-30">
-            <div className="bg-gray-900/95 border border-blue-500/30 rounded-xl shadow-lg p-3 flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[16px] text-blue-400 font-bold">Trade #{progressData.currentTradeNum}</span>
-                <span className="ml-auto text-[12px] text-gray-400 font-medium">Current</span>
-              </div>
-              <div className="flex flex-col gap-1 mt-1">
-                <div className="flex flex-row items-center justify-between">
-                  <span className="text-[13px] text-gray-300">Start</span>
-                  <span className="text-[13px] text-white font-semibold">${progressData.currentTradeStart?.toLocaleString(undefined, {maximumFractionDigits:2})}</span>
-                </div>
-                <div className="flex flex-row items-center justify-between">
-                  <span className="text-[13px] text-gray-300">Target</span>
-                  <span className={`text-[13px] font-bold ${progressData.currentTradeProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>${progressData.currentTradeProfit?.toFixed(2)}
-                    {typeof progressData.currentTradeProfitPct === 'number' && (
-                      <span className="ml-1 text-[12px] font-medium">({progressData.currentTradeProfitPct.toFixed(2)}%)</span>
-                    )}
-                  </span>
-                </div>
-                <div className="flex flex-row items-center justify-between">
-                  <span className="text-[13px] text-gray-300">End</span>
-                  <span className="text-[13px] text-blue-400 font-bold">${progressData.currentTradeEnd?.toLocaleString(undefined, {maximumFractionDigits:2})}</span>
-                </div>
-              </div>
+            <div className="bg-gray-900/95 border border-blue-500/30 rounded-xl shadow-lg p-3 flex items-center justify-between gap-2">
+              <span className="text-[16px] text-cyan-300 font-bold">Trade #{progressData.currentTradeNum}</span>
+              <span className="text-[14px] text-green-400 font-bold">
+                Target: +${progressData.currentTradeProfit?.toLocaleString(undefined, {maximumFractionDigits:2})}
+              </span>
             </div>
           </div>
         ) : null
       );
     // Extract current milestone info if available
     const currentTradeNum = progressData?.currentTradeNum;
-    const currentTradeStart = progressData?.currentTradeStart;
     const currentTradeProfit = progressData?.currentTradeProfit;
-    const currentTradeEnd = progressData?.currentTradeEnd;
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -79,7 +59,7 @@ export default function Navbar({ onRefresh, loading, progressData }) {
                 </svg>
               </div>
               <span
-                className="block font-extrabold italic tracking-tight text-2xl sm:text-3xl bg-gradient-to-b from-yellow-200 via-amber-400 to-orange-600 bg-clip-text text-transparent select-none"
+                className="block font-extrabold italic tracking-tight text-2xl sm:text-3xl bg-gradient-to-b from-cyan-200 via-sky-400 to-blue-600 bg-clip-text text-transparent select-none"
                 style={{
                   fontFamily: "'Trebuchet MS', 'Segoe UI', system-ui, sans-serif",
                   filter: "drop-shadow(0 1px 0 rgba(255,255,255,0.35)) drop-shadow(0 2px 1px rgba(0,0,0,0.6)) drop-shadow(0 4px 6px rgba(0,0,0,0.45))",
@@ -112,39 +92,13 @@ export default function Navbar({ onRefresh, loading, progressData }) {
             </div>
           </div>
 
-          {/* Progress Bar - Compact in header */}
-          {progressData && (
-            <div className="hidden md:flex items-center gap-2 flex-1 mx-4 px-2 py-1 bg-gray-900/50 rounded-full border border-gray-700/50 min-h-[40px] whitespace-nowrap overflow-x-auto min-w-0">
-              <span className="text-[11px] text-white font-bold tabular-nums">{(progressData?.tradesProgress || 0).toFixed(1)}%</span>
-              <div className="flex-1 bg-gray-700/80 rounded-full h-2 overflow-hidden shadow-inner relative">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-green-400 rounded-full transition-all duration-700 shadow-lg shadow-purple-500/20"
-                  style={{ width: `${Math.max(progressData?.tradesProgress || 0, 1)}%` }}
-                />
-                <div 
-                  className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent rounded-full pointer-events-none"
-                />
-              </div>
-              {/* Current Trade Summary */}
-              {currentTradeNum && (
-                <div className="flex flex-col md:flex-row items-end md:items-center justify-center gap-1 md:gap-3 min-w-[120px] px-2 border-l border-gray-700/40 flex-shrink-0">
-                  <span className="text-[13px] text-blue-400 font-semibold leading-tight md:mr-3">Trade #{currentTradeNum}</span>
-                  <span className="text-[12px] text-gray-300 leading-tight md:mr-3">Start: <span className="text-white">${currentTradeStart?.toLocaleString(undefined, {maximumFractionDigits:2})}</span></span>
-                  <span className="text-[12px] text-green-400 leading-tight md:mr-3">Target: <span className="font-bold">+${currentTradeProfit?.toLocaleString(undefined, {maximumFractionDigits:2})}</span></span>
-                  <span className="text-[12px] text-blue-400 leading-tight">End: <span className="font-bold">${currentTradeEnd?.toLocaleString(undefined, {maximumFractionDigits:2})}</span></span>
-                </div>
-              )}
-              {/* Trades Remaining (RmT) */}
-              {typeof progressData?.tradesRemaining === 'number' && (
-                <div className="flex items-center gap-1 px-2 border-l border-gray-700/40 flex-shrink-0">
-                  <span className="text-[12px] text-yellow-300 font-bold">RmT</span>
-                  <span className="text-[12px] text-white font-bold">{progressData.tradesRemaining}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] md:text-[12px] text-gray-300 font-medium">$100K</span>
-                <span className="text-[10px] md:text-[12px] text-green-400 font-semibold">🎯</span>
-              </div>
+          {/* Compact compound summary — current trade number + its target only */}
+          {progressData && currentTradeNum && (
+            <div className="hidden md:flex items-center gap-3 mx-4 px-3 py-1.5 bg-gray-900/50 rounded-full border border-gray-700/50 min-h-[40px] whitespace-nowrap flex-shrink-0">
+              <span className="text-[13px] text-cyan-300 font-semibold leading-tight">Trade #{currentTradeNum}</span>
+              <span className="text-[13px] text-green-400 leading-tight">
+                Target: <span className="font-bold">+${currentTradeProfit?.toLocaleString(undefined, {maximumFractionDigits:2})}</span>
+              </span>
             </div>
           )}
 
