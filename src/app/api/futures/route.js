@@ -461,6 +461,20 @@ export async function POST(request) {
       const slChangeRequested = parsedSL !== null
         && (existingSL === null || Number(parsedSL) !== existingSL);
 
+      // Risk-reduction rule: each SL modification must REDUCE the loss (move the
+      // SL tighter / closer to entry), never widen it. A tighter SL is a higher
+      // price for a LONG and a lower price for a SHORT.
+      if (slChangeRequested && existingSL !== null) {
+        const tighterOk = sideUpper === 'LONG'
+          ? Number(parsedSL) > existingSL   // LONG: new SL must be higher (nearer entry)
+          : Number(parsedSL) < existingSL;  // SHORT: new SL must be lower (nearer entry)
+        if (!tighterOk) {
+          return NextResponse.json({
+            error: `Stop loss can only be tightened to reduce the loss. For a ${sideUpper}, the new SL must be ${sideUpper === 'LONG' ? 'higher' : 'lower'} than the current ${existingSL} (smaller loss), not wider.`,
+          }, { status: 400 });
+        }
+      }
+
       let effectiveSL = parsedSL;
       let willCountSlWrite = false;
 

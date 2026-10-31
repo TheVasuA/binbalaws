@@ -101,6 +101,18 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
       }
     }
 
+    // Risk-reduction rule: a changed SL may only be TIGHTENED (smaller loss),
+    // never widened. Tighter = higher price for LONG, lower price for SHORT.
+    const existingSLPrice = position.stopLossPrice ? Number(position.stopLossPrice) : null;
+    if (!slLocked && slPrice !== null && existingSLPrice !== null && slPrice !== existingSLPrice) {
+      const tighterOk = position.side === 'LONG' ? slPrice > existingSLPrice : slPrice < existingSLPrice;
+      if (!tighterOk) {
+        const curLoss = Math.abs((position.side === 'LONG' ? entry - existingSLPrice : existingSLPrice - entry) * qty);
+        setEditRiskError(`Stop loss can only be tightened (smaller loss). Current SL risks ${curLoss.toFixed(2)} USDT — the new SL must reduce that, not increase it.`);
+        return;
+      }
+    }
+
     setEditRiskSubmitting(true);
     setEditRiskError('');
     try {
@@ -475,7 +487,7 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                     </p>
                   ) : (
                     <p className="text-[10px] text-gray-500">
-                      Stop loss can be changed {position.slChangesRemaining ?? 3} more time{(position.slChangesRemaining ?? 3) === 1 ? '' : 's'}, then it locks.
+                      Stop loss can be changed {position.slChangesRemaining ?? 3} more time{(position.slChangesRemaining ?? 3) === 1 ? '' : 's'}, then it locks. Each change must reduce the loss (tighter SL only).
                     </p>
                   )}
                   {editRiskMode === 'usdt' ? (
@@ -515,6 +527,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                           onChange={(e) => setEditTPPrice(e.target.value)}
                           className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-green-500 tabular-nums"
                         />
+                        {editTPPrice && !isNaN(parseFloat(editTPPrice)) && parseFloat(editTPPrice) > 0 && (
+                          <p className="text-[10px] text-green-300 mt-0.5">
+                            Profit ≈ +{(Math.abs((position.side === 'LONG'
+                              ? parseFloat(editTPPrice) - parseFloat(position.entryPrice)
+                              : parseFloat(position.entryPrice) - parseFloat(editTPPrice)) * Math.abs(parseFloat(position.positionAmt)))).toFixed(2)} USDT
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="text-[10px] text-red-400 block mb-0.5">
@@ -530,6 +549,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                           title={position.slLocked ? 'Stop loss is locked after being changed 3 times.' : undefined}
                           className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500 tabular-nums disabled:opacity-50 disabled:cursor-not-allowed"
                         />
+                        {!position.slLocked && editSLPrice && !isNaN(parseFloat(editSLPrice)) && parseFloat(editSLPrice) > 0 && (
+                          <p className="text-[10px] text-red-300 mt-0.5">
+                            Loss ≈ -{(Math.abs((position.side === 'LONG'
+                              ? parseFloat(position.entryPrice) - parseFloat(editSLPrice)
+                              : parseFloat(editSLPrice) - parseFloat(position.entryPrice)) * Math.abs(parseFloat(position.positionAmt)))).toFixed(2)} USDT
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -810,6 +836,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                               onChange={(e) => setEditTPPrice(e.target.value)}
                               className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-green-500 tabular-nums"
                             />
+                            {editTPPrice && !isNaN(parseFloat(editTPPrice)) && parseFloat(editTPPrice) > 0 && (
+                              <span className="text-[10px] text-green-300">
+                                +{(Math.abs((position.side === 'LONG'
+                                  ? parseFloat(editTPPrice) - parseFloat(position.entryPrice)
+                                  : parseFloat(position.entryPrice) - parseFloat(editTPPrice)) * Math.abs(parseFloat(position.positionAmt)))).toFixed(2)} USDT
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <label className="text-[10px] text-red-400">SL price:</label>
@@ -821,6 +854,13 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                               title={position.slLocked ? 'Stop loss is locked after being changed 3 times.' : undefined}
                               className="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500 tabular-nums disabled:opacity-50 disabled:cursor-not-allowed"
                             />
+                            {!position.slLocked && editSLPrice && !isNaN(parseFloat(editSLPrice)) && parseFloat(editSLPrice) > 0 && (
+                              <span className="text-[10px] text-red-300">
+                                -{(Math.abs((position.side === 'LONG'
+                                  ? parseFloat(position.entryPrice) - parseFloat(editSLPrice)
+                                  : parseFloat(editSLPrice) - parseFloat(position.entryPrice)) * Math.abs(parseFloat(position.positionAmt)))).toFixed(2)} USDT
+                              </span>
+                            )}
                             {position.slLocked
                               ? <span className="text-[10px] text-gray-500">🔒 locked</span>
                               : <span className="text-[10px] text-gray-500">({position.slChangesRemaining ?? 3} left)</span>}
