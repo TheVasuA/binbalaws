@@ -72,6 +72,7 @@ export default function FuturesPage() {
   const baseBalanceAutoClose = Number(settings?.baseBalanceAutoClose) === 1;
   // Continuous-alarm preferences from settings.
   const continuousAlarmEnabled = Number(settings?.continuousAlarmEnabled) !== 0; // default on
+  const continuousAlarmMinutes = Number(settings?.continuousAlarmMinutes) > 0 ? Number(settings?.continuousAlarmMinutes) : 15;
   const alarmTone = settings?.alarmTone || 'classic';
   // "Overall portfolio" = total equity (wallet + unrealized PnL).
   const overallBalance = Number(mergedAccount?.totalMarginBalance) || 0;
@@ -192,7 +193,7 @@ export default function FuturesPage() {
         message: `Overall balance ${formatCurrency(overallBalance)} is within ${baseBalanceAlarmPercent}% of base (alarm at ${formatCurrency(baseBalanceAlarmUsd)}). Positions will be force-closed on contact. Alarm will sound for 15 min.`,
       });
       // Repeating alarm sound for 15 minutes (if enabled in settings).
-      if (continuousAlarmEnabled) startAlarm({ durationMs: 15 * 60 * 1000, everyMs: 3000, toneId: alarmTone });
+      if (continuousAlarmEnabled) startAlarm({ durationMs: continuousAlarmMinutes * 60 * 1000, everyMs: 3000, toneId: alarmTone });
     }
     // Re-arm + silence once equity climbs back ~15% past the alarm level.
     if (!baseBalanceNear && overallBalance > baseBalanceAlarmUsd * 1.15 && notifiedRef.current.baseAlarm) {
@@ -227,7 +228,7 @@ export default function FuturesPage() {
         title: `🛑 Base balance reached — ${formatCurrency(baseBalance)}`,
         message: `Overall balance ${formatCurrency(overallBalance)} is at/below the base floor with ${openPositionCount} position${openPositionCount === 1 ? '' : 's'} open. ${baseBalanceAutoClose ? 'Force-closing all now.' : 'Auto-close is OFF — close manually.'}`,
       });
-      if (continuousAlarmEnabled) startAlarm({ durationMs: 15 * 60 * 1000, everyMs: 3000, toneId: alarmTone });
+      if (continuousAlarmEnabled) startAlarm({ durationMs: continuousAlarmMinutes * 60 * 1000, everyMs: 3000, toneId: alarmTone });
     }
 
     // Recovered back above the floor → clear the latch and silence.

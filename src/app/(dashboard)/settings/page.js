@@ -600,6 +600,20 @@ export default function SettingsPage() {
           </span>
         </label>
 
+        {/* Alarm duration (minutes) */}
+        <div className="mb-5 max-w-[200px]">
+          <label className="block text-sm text-gray-300 mb-1">
+            Alarm duration <span className="text-gray-500">(minutes)</span>
+          </label>
+          <input
+            type="number" min="1" max="120" step="1"
+            value={form.continuousAlarmMinutes ?? ''}
+            onChange={(e) => handleChange('continuousAlarmMinutes', e.target.value)}
+            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 tabular-nums"
+          />
+          <p className="text-gray-500 text-xs mt-1">How long the repeating alarm keeps sounding (1–120 min).</p>
+        </div>
+
         {/* 10-tone picker with preview */}
         <p className="text-sm text-gray-300 mb-2">Alarm tone</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
