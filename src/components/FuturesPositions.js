@@ -452,6 +452,14 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                 }`}>
                   {position.leverage}x
                 </span>
+                {position.trailing && (
+                  <span
+                    title={`Auto-trailing stop: ${position.trailing.mode === 'usdt' ? `${position.trailing.distance} USDT` : `${position.trailing.distance}%`} behind peak${position.trailing.lastSL ? ` · SL @ ${position.trailing.lastSL}` : ''}`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/40"
+                  >
+                    📈 {position.trailing.mode === 'usdt' ? `${position.trailing.distance}$` : `${position.trailing.distance}%`}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => handleForceClose(position)}
@@ -846,9 +854,29 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                         }>
                           <span>{formatCurrency(position.stopLossPrice, 4).replace('$', '')}</span>
                         </div>
+                        {position.trailing && (
+                          <div className="flex items-center justify-end mt-0.5">
+                            <span
+                              title={`Auto-trailing: ${position.trailing.mode === 'usdt' ? `${position.trailing.distance} USDT` : `${position.trailing.distance}%`} behind peak`}
+                              className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/40"
+                            >
+                              📈 {position.trailing.mode === 'usdt' ? `${position.trailing.distance}$` : `${position.trailing.distance}%`}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <span className="text-gray-500 text-sm">No SL</span>
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-gray-500 text-sm">No SL</span>
+                        {position.trailing && (
+                          <span
+                            title={`Auto-trailing: ${position.trailing.mode === 'usdt' ? `${position.trailing.distance} USDT` : `${position.trailing.distance}%`} behind peak (waiting to arm)`}
+                            className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/40"
+                          >
+                            📈 {position.trailing.mode === 'usdt' ? `${position.trailing.distance}$` : `${position.trailing.distance}%`}
+                          </span>
+                        )}
+                      </div>
                     )}
                 </td>
                 <td className="py-2 px-3 text-right text-blue-400">
