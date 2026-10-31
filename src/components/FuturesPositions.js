@@ -24,6 +24,9 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
   const [editSLUsdt, setEditSLUsdt] = useState('');
   const [editTPUsdt, setEditTPUsdt] = useState('');
   const [editRiskMode, setEditRiskMode] = useState('usdt'); // 'usdt' | 'price'
+  // When true, the SL USDT amount is interpreted as LOCKED-IN PROFIT (stop above
+  // entry for a LONG) instead of a loss — used to book minimum profit on a winner.
+  const [editSLProfit, setEditSLProfit] = useState(false);
   const [editSLPrice, setEditSLPrice] = useState('');
   const [editTPPrice, setEditTPPrice] = useState('');
   const [editRiskSubmitting, setEditRiskSubmitting] = useState(false);
@@ -35,6 +38,15 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
     setEditTPUsdt(position.takeProfitValue ? Math.abs(Number(position.takeProfitValue)).toFixed(2) : '');
     setEditSLPrice(position.stopLossPrice ? String(position.stopLossPrice) : '');
     setEditTPPrice(position.takeProfitPrice ? String(position.takeProfitPrice) : '');
+    // Default the profit-lock toggle to match whether the existing SL is already
+    // above entry (LONG) / below entry (SHORT), i.e. currently locking profit.
+    setEditSLProfit(
+      position.stopLossPrice
+        ? (position.side === 'LONG'
+            ? Number(position.stopLossPrice) > Number(position.entryPrice)
+            : Number(position.stopLossPrice) < Number(position.entryPrice))
+        : false,
+    );
     setEditRiskError('');
   };
 
@@ -62,9 +74,14 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
       const slp = parseFloat(editSLPrice);
       const tpp = parseFloat(editTPPrice);
       if (!slLocked && editSLPrice !== '' && !isNaN(slp) && slp > 0) {
-        const wrong = position.side === 'LONG' ? slp >= entry : slp <= entry;
-        if (wrong) {
-          setEditRiskError(`Stop loss price must be ${position.side === 'LONG' ? 'below' : 'above'} entry (${entry}).`);
+        // Allow the SL on EITHER side of entry — above entry (LONG) / below
+        // entry (SHORT) locks in profit (break-even+). The only invalid case is
+        // a stop already past the current mark price, which would trigger the
+        // instant the order is placed.
+        const mark = parseFloat(position.markPrice) || entry;
+        const wouldTriggerNow = position.side === 'LONG' ? slp >= mark : slp <= mark;
+        if (wouldTriggerNow) {
+          setEditRiskError(`Stop ${slp} would trigger immediately — it is already ${position.side === 'LONG' ? 'above' : 'below'} the current price (${mark}). Set it ${position.side === 'LONG' ? 'below' : 'above'} ${mark}.`);
           return;
         }
         slPrice = slp;
@@ -82,11 +99,21 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
       const slUsdt = parseFloat(editSLUsdt);
       const tpUsdt = parseFloat(editTPUsdt);
       if (!slLocked && editSLUsdt !== '' && !isNaN(slUsdt) && slUsdt > 0) {
-        slPrice = position.side === 'LONG'
-          ? entry - slUsdt / qty
-          : entry + slUsdt / qty;
+        // editSLProfit=false → SL is a LOSS below entry (LONG) / above (SHORT).
+        // editSLProfit=true  → SL LOCKS PROFIT above entry (LONG) / below (SHORT).
+        const dir = position.side === 'LONG'
+          ? (editSLProfit ? 1 : -1)
+          : (editSLProfit ? -1 : 1);
+        slPrice = entry + dir * (slUsdt / qty);
         if (slPrice <= 0) {
           setEditRiskError('Stop loss USDT value is too large for this position.');
+          return;
+        }
+        // A profit-lock stop can't sit past the current price (would trigger now).
+        const mark = parseFloat(position.markPrice) || entry;
+        const wouldTriggerNow = position.side === 'LONG' ? slPrice >= mark : slPrice <= mark;
+        if (editSLProfit && wouldTriggerNow) {
+          setEditRiskError(`That profit-lock stop (${slPrice.toFixed(4)}) is already past the current price (${mark}) and would trigger immediately. Use a smaller amount.`);
           return;
         }
       }
@@ -502,19 +529,38 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] text-red-400 block mb-0.5">
-                          Stop Loss (USDT) {position.slLocked
+                        <label className="text-[10px] block mb-0.5">
+                          <span className={editSLProfit ? 'text-green-400' : 'text-red-400'}>
+                            {editSLProfit ? 'Lock Profit (USDT)' : 'Stop Loss (USDT)'}
+                          </span>{' '}
+                          {position.slLocked
                             ? <span className="text-gray-500">🔒 locked</span>
                             : <span className="text-gray-500">({position.slChangesRemaining ?? 3} left)</span>}
                         </label>
+                        {!position.slLocked && (
+                          <label className="flex items-center gap-1 mb-1 cursor-pointer">
+                            <input type="checkbox" checked={editSLProfit}
+                              onChange={(e) => setEditSLProfit(e.target.checked)}
+                              className="h-3 w-3 accent-green-500" />
+                            <span className="text-[9px] text-green-300">Lock profit (stop in profit)</span>
+                          </label>
+                        )}
                         <input
-                          type="number" min="0" step="0.01" placeholder="e.g. 50"
+                          type="number" min="0" step="0.01" placeholder={editSLProfit ? 'profit to lock' : 'e.g. 50'}
                           value={position.slLocked ? Math.abs(Number(position.stopLossValue)).toFixed(2) : editSLUsdt}
                           onChange={(e) => setEditSLUsdt(e.target.value)}
                           disabled={!!position.slLocked}
                           title={position.slLocked ? 'Stop loss is locked after being changed 3 times.' : undefined}
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className={`w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${editSLProfit ? 'focus:border-green-500' : 'focus:border-red-500'}`}
                         />
+                        {!position.slLocked && editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
+                          <p className={`text-[10px] mt-0.5 ${editSLProfit ? 'text-green-300' : 'text-red-300'}`}>
+                            Stop ≈ {(position.side === 'LONG'
+                              ? parseFloat(position.entryPrice) + (editSLProfit ? 1 : -1) * parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))
+                              : parseFloat(position.entryPrice) + (editSLProfit ? -1 : 1) * parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                            {' '}({editSLProfit ? '+' : '-'}{parseFloat(editSLUsdt).toFixed(2)} USDT)
+                          </p>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -806,22 +852,31 @@ export default function FuturesPositions({ positions, onRefresh, pendingOrders =
                             )}
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <label className="text-[10px] text-red-400">SL:</label>
+                            <label className={`text-[10px] ${editSLProfit ? 'text-green-400' : 'text-red-400'}`}>{editSLProfit ? 'Lock+:' : 'SL:'}</label>
+                            {!position.slLocked && (
+                              <label className="flex items-center gap-1 cursor-pointer" title="Lock profit — put the stop in profit">
+                                <input type="checkbox" checked={editSLProfit}
+                                  onChange={(e) => setEditSLProfit(e.target.checked)}
+                                  className="h-3 w-3 accent-green-500" />
+                                <span className="text-[9px] text-green-300">profit</span>
+                              </label>
+                            )}
                             <input
-                              type="number" min="0" step="0.01" placeholder="USDT"
+                              type="number" min="0" step="0.01" placeholder={editSLProfit ? 'profit' : 'USDT'}
                               value={position.slLocked ? Math.abs(Number(position.stopLossValue)).toFixed(2) : editSLUsdt}
                               onChange={(e) => setEditSLUsdt(e.target.value)}
                               disabled={!!position.slLocked}
                               title={position.slLocked ? 'Stop loss is locked after being changed 3 times.' : undefined}
-                              className="w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className={`w-24 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${editSLProfit ? 'focus:border-green-500' : 'focus:border-red-500'}`}
                             />
                             {position.slLocked ? (
                               <span className="text-[10px] text-gray-500">🔒 locked</span>
                             ) : (editSLUsdt && !isNaN(parseFloat(editSLUsdt)) && parseFloat(editSLUsdt) > 0 && (
-                              <span className="text-[10px] text-red-300">
-                                ≈ {position.side === 'LONG'
-                                  ? (parseFloat(position.entryPrice) - parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)
-                                  : (parseFloat(position.entryPrice) + parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                              <span className={`text-[10px] ${editSLProfit ? 'text-green-300' : 'text-red-300'}`}>
+                                ≈ {(position.side === 'LONG'
+                                  ? parseFloat(position.entryPrice) + (editSLProfit ? 1 : -1) * parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))
+                                  : parseFloat(position.entryPrice) + (editSLProfit ? -1 : 1) * parseFloat(editSLUsdt) / Math.abs(parseFloat(position.positionAmt))).toFixed(4)}
+                                {' '}({editSLProfit ? '+' : '-'}{parseFloat(editSLUsdt).toFixed(2)})
                               </span>
                             ))}
                           </div>
