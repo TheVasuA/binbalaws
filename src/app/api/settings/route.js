@@ -32,7 +32,12 @@ const DEFAULTS = {
   baseBalanceAlarmPercent: 10, // alarm at this % before base balance
   baseBalanceAutoClose: 1,    // 1 = auto-close all when base balance reached
   baseBalanceProfitPercent: 10, // today profit % added to base balance next day
+  continuousAlarmEnabled: 1,  // 1 = sound the repeating 15-min alarm on alerts
+  alarmTone: 'classic',       // selected alarm tone id (string, see ALARM_TONES)
 };
+
+// Keys whose values are strings (not coerced to Number on save).
+const STRING_KEYS = new Set(['alarmTone']);
 
 export async function GET() {
   try {
@@ -54,12 +59,17 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Settings are locked — unlock first' }, { status: 401 });
     }
 
-    // Whitelist + coerce to numbers so we never persist junk.
+    // Whitelist + coerce to numbers (string keys pass through) so we never
+    // persist junk.
     const clean = {};
     for (const key of Object.keys(DEFAULTS)) {
       if (body[key] !== undefined && body[key] !== null && body[key] !== '') {
-        const num = Number(body[key]);
-        if (Number.isFinite(num)) clean[key] = num;
+        if (STRING_KEYS.has(key)) {
+          clean[key] = String(body[key]);
+        } else {
+          const num = Number(body[key]);
+          if (Number.isFinite(num)) clean[key] = num;
+        }
       }
     }
 

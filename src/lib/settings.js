@@ -22,6 +22,8 @@ export const DEFAULT_SETTINGS = {
   baseBalanceAlarmPercent: 10, // alarm at this % before base balance
   baseBalanceAutoClose: 1,   // 1 = auto-close all when base balance reached
   baseBalanceProfitPercent: 10, // today profit % added to base balance next day
+  continuousAlarmEnabled: 1, // 1 = sound the repeating 15-min alarm on alerts
+  alarmTone: 'classic',      // selected alarm tone id (see ALARM_TONES)
 };
 
 // The settings API rejects writes without a valid unlock session token. The

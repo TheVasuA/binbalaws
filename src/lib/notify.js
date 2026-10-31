@@ -13,27 +13,39 @@ const nextId = () => ++_id;
 // interacted with the page, so we "unlock" the element on the first gesture.
 // If the file can't load/play (e.g. Safari + ogg, or a fetch error), we fall
 // back to a synthetic Web Audio beep so the alarm is never silent.
-const ALARM_SRC = '/alarm.ogg';
-let _alarmEl = null;      // the shared <audio> element (loops natively)
 let _unlocked = false;    // becomes true after the first user gesture
-let _audioCtx = null;     // single persistent Web Audio context (synth fallback)
-let _loopTimer = null;    // setInterval handle for the synth-beep loop
+let _audioCtx = null;     // single persistent Web Audio context
+let _loopTimer = null;    // setInterval handle for the repeating alarm
 let _stopTimer = null;    // setTimeout handle that ends the whole alarm
 let _alarmActive = false; // true while the 15-min alarm is sounding
+let _selectedTone = 'classic'; // current alarm tone id (set from settings)
 
-function getAlarmEl() {
-  if (typeof window === 'undefined') return null;
-  if (_alarmEl) return _alarmEl;
-  const el = new Audio(ALARM_SRC);
-  el.preload = 'auto';
-  el.loop = true; // loop the clip continuously while the alarm is active
-  _alarmEl = el;
-  return el;
+// ── 10 selectable alarm tones ───────────────────────────────────────────────
+// Each tone is a short pattern of notes played via Web Audio (no files needed,
+// works offline). A pattern is an array of { freq, dur } notes; `type` is the
+// oscillator waveform. The alarm loop repeats the chosen pattern.
+export const ALARM_TONES = [
+  { id: 'classic',   name: 'Classic Beep',    type: 'square',   pattern: [{ f: 880, d: 0.15 }, { f: 880, d: 0.15 }, { f: 880, d: 0.15 }] },
+  { id: 'siren',     name: 'Siren',           type: 'sine',     pattern: [{ f: 600, d: 0.25 }, { f: 900, d: 0.25 }, { f: 600, d: 0.25 }, { f: 900, d: 0.25 }] },
+  { id: 'chime',     name: 'Chime',           type: 'sine',     pattern: [{ f: 1047, d: 0.18 }, { f: 1319, d: 0.18 }, { f: 1568, d: 0.3 }] },
+  { id: 'pulse',     name: 'Fast Pulse',      type: 'square',   pattern: [{ f: 1000, d: 0.08 }, { f: 0, d: 0.06 }, { f: 1000, d: 0.08 }, { f: 0, d: 0.06 }, { f: 1000, d: 0.08 }] },
+  { id: 'alert',     name: 'Alert',           type: 'sawtooth', pattern: [{ f: 440, d: 0.2 }, { f: 880, d: 0.2 }] },
+  { id: 'warble',    name: 'Warble',          type: 'triangle', pattern: [{ f: 700, d: 0.1 }, { f: 1100, d: 0.1 }, { f: 700, d: 0.1 }, { f: 1100, d: 0.1 }] },
+  { id: 'descending',name: 'Descending',      type: 'square',   pattern: [{ f: 1200, d: 0.12 }, { f: 900, d: 0.12 }, { f: 600, d: 0.2 }] },
+  { id: 'ascending', name: 'Ascending',       type: 'square',   pattern: [{ f: 600, d: 0.12 }, { f: 900, d: 0.12 }, { f: 1200, d: 0.2 }] },
+  { id: 'doublebeep',name: 'Double Beep',     type: 'square',   pattern: [{ f: 988, d: 0.12 }, { f: 988, d: 0.12 }, { f: 0, d: 0.2 }] },
+  { id: 'buzzer',    name: 'Harsh Buzzer',    type: 'sawtooth', pattern: [{ f: 220, d: 0.4 }] },
+];
+
+const TONE_BY_ID = Object.fromEntries(ALARM_TONES.map((t) => [t.id, t]));
+
+export function setAlarmTone(id) {
+  if (TONE_BY_ID[id]) _selectedTone = id;
 }
 
-// One shared AudioContext reused for every synth beep. Creating a fresh context
-// per beep was the bug behind "only a single beep" — new contexts start
-// suspended under the autoplay policy, so later beeps were silent.
+// One shared AudioContext reused for every beep. Creating a fresh context per
+// beep was the bug behind "only a single beep" — new contexts start suspended
+// under the autoplay policy, so later beeps were silent.
 function getAudioCtx() {
   if (typeof window === 'undefined') return null;
   const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -45,44 +57,41 @@ function getAudioCtx() {
   return _audioCtx;
 }
 
-// Synthetic beep burst using the shared, resumed context.
-function synthBeep({ times = 3, freq = 880, gap = 220 } = {}) {
+// Play one cycle of a tone pattern. `toneId` defaults to the selected tone.
+function playTone(toneId) {
+  const tone = TONE_BY_ID[toneId] || TONE_BY_ID[_selectedTone] || ALARM_TONES[0];
   const ctx = getAudioCtx();
   if (!ctx) return;
   try {
     let t = ctx.currentTime;
-    for (let i = 0; i < times; i++) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + 0.16);
-      t += gap / 1000;
+    for (const note of tone.pattern) {
+      const dur = Number(note.d) || 0.15;
+      if (note.f > 0) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = tone.type || 'square';
+        osc.frequency.value = note.f;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + dur + 0.02);
+      }
+      t += dur;
     }
   } catch { /* audio not available */ }
 }
 
-// A single beep burst (used by notify beep:true) — primary file else synth.
-function playBeep(opts = {}) {
-  // If the continuous alarm is already sounding, don't touch the looping audio
-  // element (that would stop the loop) — just add a synth beep on top.
-  if (_alarmActive) { synthBeep(opts); return; }
-  const el = getAlarmEl();
-  if (el) {
-    try {
-      el.loop = false; // one-shot for a plain notification beep
-      el.currentTime = 0;
-      const p = el.play();
-      if (p && typeof p.catch === 'function') p.catch(() => synthBeep(opts));
-      return;
-    } catch { /* fall through to synth */ }
-  }
-  synthBeep(opts);
+// Public: preview a tone once (used by the Settings picker).
+export function previewAlarmTone(toneId) {
+  getAudioCtx();
+  playTone(toneId);
+}
+
+// A single beep burst (used by notify beep:true) — plays the current tone once.
+function playBeep() {
+  playTone(_selectedTone);
 }
 
 // Unlock audio on the first user gesture so later programmatic plays are
@@ -91,19 +100,7 @@ function installAudioUnlock() {
   if (typeof window === 'undefined' || _unlocked) return;
   const unlock = () => {
     _unlocked = true;
-    // Resume/prime the Web Audio context so synth beeps work later.
-    getAudioCtx();
-    const el = getAlarmEl();
-    if (el) {
-      const prevMuted = el.muted;
-      const prevLoop = el.loop;
-      el.muted = true;
-      el.loop = false;
-      const p = el.play();
-      const done = () => { el.pause(); el.currentTime = 0; el.muted = prevMuted; el.loop = prevLoop; };
-      if (p && typeof p.then === 'function') p.then(done).catch(done);
-      else done();
-    }
+    getAudioCtx(); // resume/prime the Web Audio context for later beeps
     window.removeEventListener('pointerdown', unlock);
     window.removeEventListener('keydown', unlock);
   };
@@ -111,12 +108,13 @@ function installAudioUnlock() {
   window.addEventListener('keydown', unlock, { once: true });
 }
 
-// Start a CONTINUOUS alarm for `durationMs` (default 15 minutes). The audio file
-// loops natively (reliable, unlike re-triggering it every few seconds, which
-// browsers drop); a synth beep loop runs in parallel as a guaranteed fallback.
-// Calling again just refreshes the duration without restarting the sound.
-function startAlarmLoop({ durationMs = 15 * 60 * 1000, everyMs = 3000, opts } = {}) {
+// Start a CONTINUOUS alarm for `durationMs` (default 15 minutes): it repeats the
+// selected tone every `everyMs` for the whole duration. Calling again just
+// refreshes the duration without restarting. Pass { toneId } to override the
+// currently selected tone for this alarm.
+function startAlarmLoop({ durationMs = 15 * 60 * 1000, everyMs = 3000, toneId } = {}) {
   if (typeof window === 'undefined') return;
+  const tone = toneId || _selectedTone;
 
   // (Re)schedule the overall stop time.
   if (_stopTimer) { clearTimeout(_stopTimer); _stopTimer = null; }
@@ -125,23 +123,10 @@ function startAlarmLoop({ durationMs = 15 * 60 * 1000, everyMs = 3000, opts } = 
   if (_alarmActive) return; // already sounding; duration just extended above
   _alarmActive = true;
 
-  // Primary: loop the real alarm file continuously.
-  const el = getAlarmEl();
-  if (el) {
-    try {
-      el.loop = true;
-      el.currentTime = 0;
-      const p = el.play();
-      if (p && typeof p.catch === 'function') p.catch(() => { /* rely on synth loop */ });
-    } catch { /* rely on synth loop */ }
-  }
-
-  // Synth beep loop — runs in parallel so there is always an audible, repeating
-  // alarm even if the file is blocked/unsupported. Fires now, then every everyMs.
-  const beepOpts = opts || { times: 3, freq: 740, gap: 200 };
-  synthBeep(beepOpts);
+  // Repeat the chosen tone for the whole duration — fires now, then every everyMs.
+  playTone(tone);
   if (!_loopTimer) {
-    _loopTimer = setInterval(() => synthBeep(beepOpts), everyMs);
+    _loopTimer = setInterval(() => playTone(tone), everyMs);
   }
 }
 
@@ -149,7 +134,6 @@ function stopAlarmLoop() {
   _alarmActive = false;
   if (_loopTimer) { clearInterval(_loopTimer); _loopTimer = null; }
   if (_stopTimer) { clearTimeout(_stopTimer); _stopTimer = null; }
-  if (_alarmEl) { try { _alarmEl.pause(); _alarmEl.loop = false; _alarmEl.currentTime = 0; } catch { /* ignore */ } }
 }
 
 /**

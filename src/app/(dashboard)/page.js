@@ -5,6 +5,7 @@ import { formatCurrency } from '@/lib/utils';
 import { useBackendFuturesStream } from '@/lib/backendWS';
 import { usePortfolioSettings } from '@/lib/settings';
 import { useNotify } from '@/lib/notify';
+import { setAlarmTone } from '@/lib/notify';
 import { calculateFuturesRiskMetrics } from '@/lib/risk';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import FuturesPositions from '@/components/FuturesPositions';
@@ -69,6 +70,9 @@ export default function FuturesPage() {
   const baseBalance = Number(settings?.baseBalance) || 0;
   const baseBalanceAlarmPercent = Number(settings?.baseBalanceAlarmPercent) || 0;
   const baseBalanceAutoClose = Number(settings?.baseBalanceAutoClose) === 1;
+  // Continuous-alarm preferences from settings.
+  const continuousAlarmEnabled = Number(settings?.continuousAlarmEnabled) !== 0; // default on
+  const alarmTone = settings?.alarmTone || 'classic';
   // "Overall portfolio" = total equity (wallet + unrealized PnL).
   const overallBalance = Number(mergedAccount?.totalMarginBalance) || 0;
   // Reached the floor: overall equity at or below the base balance.
@@ -86,6 +90,9 @@ export default function FuturesPage() {
 
   // ── Notifications ──────────────────────────────────────────────────────────
   const { notify, startAlarm, stopAlarm } = useNotify();
+
+  // Keep the alarm engine's selected tone in sync with the saved setting.
+  useEffect(() => { setAlarmTone(alarmTone); }, [alarmTone]);
   const notifiedRef = useRef({
     alarm: false,
     breaker: false,
@@ -184,8 +191,8 @@ export default function FuturesPage() {
         title: `⚠ Approaching base balance floor — ${formatCurrency(baseBalance)}`,
         message: `Overall balance ${formatCurrency(overallBalance)} is within ${baseBalanceAlarmPercent}% of base (alarm at ${formatCurrency(baseBalanceAlarmUsd)}). Positions will be force-closed on contact. Alarm will sound for 15 min.`,
       });
-      // Repeating alarm sound for 15 minutes.
-      startAlarm({ durationMs: 15 * 60 * 1000, everyMs: 3000 });
+      // Repeating alarm sound for 15 minutes (if enabled in settings).
+      if (continuousAlarmEnabled) startAlarm({ durationMs: 15 * 60 * 1000, everyMs: 3000, toneId: alarmTone });
     }
     // Re-arm + silence once equity climbs back ~15% past the alarm level.
     if (!baseBalanceNear && overallBalance > baseBalanceAlarmUsd * 1.15 && notifiedRef.current.baseAlarm) {
@@ -220,7 +227,7 @@ export default function FuturesPage() {
         title: `🛑 Base balance reached — ${formatCurrency(baseBalance)}`,
         message: `Overall balance ${formatCurrency(overallBalance)} is at/below the base floor with ${openPositionCount} position${openPositionCount === 1 ? '' : 's'} open. ${baseBalanceAutoClose ? 'Force-closing all now.' : 'Auto-close is OFF — close manually.'}`,
       });
-      startAlarm({ durationMs: 15 * 60 * 1000, everyMs: 3000 });
+      if (continuousAlarmEnabled) startAlarm({ durationMs: 15 * 60 * 1000, everyMs: 3000, toneId: alarmTone });
     }
 
     // Recovered back above the floor → clear the latch and silence.

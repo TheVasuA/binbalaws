@@ -6,6 +6,7 @@ import { useBackendFuturesStream } from '@/lib/backendWS';
 import { useTheme, useWallpaper } from '@/lib/theme';
 import { WALLPAPERS } from '@/lib/wallpapers';
 import { formatCurrency } from '@/lib/utils';
+import { ALARM_TONES, previewAlarmTone, setAlarmTone } from '@/lib/notify';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ForceCloseAllButton from '@/components/ForceCloseAllButton';
 import SettingsLock from '@/components/SettingsLock';
@@ -137,7 +138,7 @@ const FIELDS = [
 ];
 
 // Sections whose content is a settings form — these show the persistent Save bar.
-const EDITABLE_SECTIONS = new Set(['preferences', 'base-balance']);
+const EDITABLE_SECTIONS = new Set(['preferences', 'base-balance', 'alarm']);
 
 export default function SettingsPage() {
   const { settings, loading, saving, error, save, reset } = usePortfolioSettings();
@@ -245,6 +246,7 @@ export default function SettingsPage() {
     { id: 'wallpaper', label: '🖼 Wallpaper' },
     { id: 'preferences', label: '🛠 Preferences' },
     { id: 'base-balance', label: '🛡 Base Balance' },
+    { id: 'alarm', label: '🔔 Alarm' },
     { id: 'security', label: '🔐 Security' },
   ];
 
@@ -569,6 +571,71 @@ export default function SettingsPage() {
           </p>
         </div>
 
+      </section>
+      )}
+
+      {activeSection === 'alarm' && (
+      <section className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 md:p-6">
+        <h2 className="text-lg font-semibold text-white mb-1">Alarm</h2>
+        <p className="text-gray-500 text-xs mb-4">
+          The continuous alarm sounds repeatedly (for ~15 minutes) on critical alerts
+          like approaching the base balance floor. Pick a tone and preview it.
+        </p>
+
+        {/* Enable / disable the continuous alarm */}
+        <label className="flex items-start gap-3 cursor-pointer mb-5">
+          <input
+            type="checkbox"
+            checked={Number(form.continuousAlarmEnabled) === 1}
+            onChange={(e) => handleChange('continuousAlarmEnabled', e.target.checked ? 1 : 0)}
+            className="mt-0.5 h-4 w-4 accent-green-500"
+          />
+          <span>
+            <span className="text-sm text-gray-200 font-medium">
+              Enable continuous alarm
+            </span>
+            <span className="block text-gray-500 text-xs mt-0.5">
+              When off, critical alerts still show a toast but won&apos;t sound the repeating alarm.
+            </span>
+          </span>
+        </label>
+
+        {/* 10-tone picker with preview */}
+        <p className="text-sm text-gray-300 mb-2">Alarm tone</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {ALARM_TONES.map((tone) => {
+            const selected = (form.alarmTone || 'classic') === tone.id;
+            return (
+              <div
+                key={tone.id}
+                className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
+                  selected ? 'border-green-500/60 bg-green-500/10' : 'border-gray-600 bg-gray-900/60'
+                }`}
+              >
+                <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                  <input
+                    type="radio"
+                    name="alarmTone"
+                    checked={selected}
+                    onChange={() => { handleChange('alarmTone', tone.id); setAlarmTone(tone.id); }}
+                    className="h-4 w-4 accent-green-500"
+                  />
+                  <span className={`text-sm truncate ${selected ? 'text-green-200' : 'text-gray-200'}`}>{tone.name}</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => previewAlarmTone(tone.id)}
+                  className="ml-2 shrink-0 px-2.5 py-1 rounded-md text-xs border border-gray-600 text-gray-200 hover:bg-gray-700"
+                >
+                  ▶ Preview
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-gray-500 text-[11px] mt-3">
+          Tip: click anywhere on the page once first so the browser allows sound. Remember to Save.
+        </p>
       </section>
       )}
 
