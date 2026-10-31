@@ -363,7 +363,7 @@ export default function FuturesPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-3xl md:text-4xl font-bold tabular-nums bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">
+                <p className="text-3xl md:text-4xl font-bold tabular-nums text-white">
                   {formatCurrency(mergedAccount?.totalMarginBalance || 0, 2)}
                 </p>
               </div>
